@@ -25,9 +25,10 @@
     "doctor": "node scripts/doctor.js",
     "render": "node bin/miniator.js render",
     "prepare": "node bin/miniator.js prepare",
-    "check": "node scripts/check.js && npm run check:third-party",
+    "check": "node scripts/check.js && npm run check:third-party && npm run check:namespace",
     "check:third-party": "node scripts/check-third-party-boundary.js",
-    "benchmark:remotion": "node benchmarks/remotion-cli.js"
+    "benchmark:remotion": "node benchmarks/remotion-cli.js",
+    "check:namespace": "node scripts/check-engine-namespace.js"
   },
   "dependencies": {
     "esbuild": "0.28.1",
