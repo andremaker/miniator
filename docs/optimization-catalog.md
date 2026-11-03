@@ -1,10 +1,10 @@
 # Miniator renderer: scene-aware optimization catalog
 
-> Historical experiment package names below have been normalized to the Miniator namespace for readability. These are archival references, not guaranteed repository paths; original evidence is stored separately.
+> **Evidence scope:** Entries record experiments, possible optimizations, failures, and unpromoted candidates. Referenced dated archives and reports are research provenance; they are not necessarily shipped or runnable in this repository. Measurements should not be treated as current-host performance. Exact input hashes and a fresh benchmark are required before promotion.
 
 **Purpose:** Preserve every promising scene-dependent optimization for future cross-scene experiments. A slow, neutral, or incorrect result on the Remotion `Hello.tsx` fixture is **not** grounds for deleting an idea. Record evidence, failure modes, and potential workloads; retest on different scenes. This is an experimental registry, **not** a list of production-safe features.
 
-**Benchmark fixture:** unchanged Remotion `Hello.tsx`, 1920x1080, 30 FPS, 120 frames; reference MP4 SHA-256 `5d4b9f82ed55a830346bec21748a0a0804f63c0aba843b5db4f90a5546a4c78b`. Keep scene text and animation behavior unchanged when comparing renderer variants. Do not rerun native Remotion merely to test these candidates.
+**Historical canonical fixture:** unchanged Remotion `Hello.tsx`, 1920x1080, 30 FPS, 120 frames; reference MP4 SHA-256 `5d4b9f82ed55a830346bec21748a0a0804f63c0aba843b5db4f90a5546a4c78b`. Keep scene text and animation behavior unchanged when comparing renderer variants. Within-engine ablations do not require rerunning Remotion; full cross-renderer comparisons do.
 
 **Architecture:** a versioned, persistent RenderPlan should primarily contain *instructions and proofs*, not frozen frames or copied DOM states. A job evaluates its current inputs. Optional materialized assets can be a separate, clearly labeled cache mode, never the default or the definition of a pre-optimized render. Any scene-code/dependency change invalidates the plan for now. Different input values must be either inside the plan's proven validity domain or trigger re-analysis/fallback.
 

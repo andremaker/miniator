@@ -1,17 +1,13 @@
-# Historical benchmarks and reproducibility
+# Benchmark tools and fixtures
 
-`engine/source/` contains the seven TSX fixture sources and `engine/references/`
-contains retained scene metadata. Historical benchmarking archives are **not**
-new benchmark results from this Git migration. Use interleaved re-runs with
-fixed input sources and revalidated outputs for performance decisions.
-Run data are ignored under `benchmarks/results/`.
+Miniator's seven built-in scenes live in `engine/source/`; composition metadata and reference details live in `engine/references/` and `engine/scene_fixture.json` after preparation. These are controlled **microbenchmarks** of rendering behaviors, not a representative catalog of complete production videos.
 
-Remotion is an **external reference renderer**. Benchmark integration must call its installed public API or CLI only, without copying its source code, installed packages, or bundled output into the Git repository. Run Miniator and Remotion independently and compare matched source, input props, frame output and codec settings.
+The benchmark directory contains an **external comparator adapter**, not a complete matched-run harness. `remotion-cli.js` invokes a locally installed Remotion CLI executable. It does not vendor source, prepare matching parameters for Miniator, calculate medians or validate visual equivalence.
 
-To invoke the external benchmark opponent without vendoring any source:
-
-```sh
-npm run benchmark:remotion -- render <entry> <composition> <output> [options]
+```bash
+npm run benchmark:remotion -- render <entry> <composition> <output> [Remotion CLI options]
 ```
 
-Miniator does not bundle or copy Remotion code. The command simply forwards arguments to the locally installed Remotion CLI. Use a separate workspace/output directory for comparisons; matched input parameters and visual fidelity still require the reproducible harness.
+Use the same source and visibly changing input parameters for both renderers; track one-off preparation separately from reusable template costs. Record current host limits, chosen planner/capture options, all individual durations, frame counts, image coverage and output fidelity. Interleave runs and avoid overlapping heavy processes. Store generated measurements and videos outside tracked source paths (`benchmarks/results/` is ignored).
+
+See [benchmark methodology](../docs/benchmarking.md) for the comparison protocol and [optimization catalog](../docs/optimization-catalog.md) for recorded experiments and conditional techniques.

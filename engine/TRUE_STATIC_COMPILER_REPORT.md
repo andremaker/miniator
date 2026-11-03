@@ -1,8 +1,10 @@
-# Miniator true static-dependency compiler vs freshly rendered React
+# Static-dependency compiler: design and measured behavior
 
-## What was fixed
+This report documents the bounded TSX-to-DOM dependency compiler and its controlled five-scene comparison with React execution. It is an experiment report, not a claim of universal React compatibility or a current-host performance ranking.
 
-The previous JSX-to-DOM patcher invoked the scene on each frame and updated/diffed virtual nodes. That experiment **did not** measure proper React elimination. The new `dependency_transform.js` performs transitive `useCurrentFrame()` binding dependency discovery in TSX, converts dynamic bindings to frame-driven closures, and marks dynamic JSX leaf fields. The `static_runtime.js` builds the physical DOM **once per atlas slot**, then updates only flagged CSS/DOM properties and text nodes. Sequence visibility is toggled by moving existing nodes, not recreating the React component. No React reconciliation, JSX re-execution, or virtual DOM diff occurs per frame.
+## Transformation and execution
+
+A separate JSX-to-DOM replay implementation evaluates and patches virtual nodes each frame; it should **not** be confused with static-dependency compilation. `dependency_transform.js` performs transitive `useCurrentFrame()` binding dependency discovery in TSX, converts dynamic bindings to frame-driven closures, and marks dynamic JSX leaf fields. The `static_runtime.js` builds the physical DOM **once per atlas slot**, then updates only flagged CSS/DOM properties and text nodes. Sequence visibility is toggled by moving existing nodes, not recreating the React component. No React reconciliation, JSX re-execution, or virtual DOM diff occurs per frame.
 
 CSS mode writes eligible `transform` and `opacity` via CSS variables, otherwise uses direct style writes. Filter-bearing scenes use direct transform writes for parity. `spring` and `interpolate` use the existing Remotion mathematical functions for exact output.
 
@@ -55,4 +57,4 @@ node prepare_compiled_scene.js ManyCards
 node build_static.js ManyCards
 node plan_renderer.js --mode compiler-matrix --matrix-styles react,staticjs,staticcss --tabs 4 --slots 3 --atlas-columns 3 --reps 5 --output rerun_cards --filter-before-pad on --pipeline off --tab-lifecycle reused
 ```
-For `Hello_original`, set `--slots 12 --atlas-columns 1 --pipeline on --matrix-plan external_hello_renderplan.json`. Raw per-run measurements and fresh-React hashes are in `TRUE_STATIC_COMPILER_RUNS.csv` and `TRUE_STATIC_COMPILER_RESULTS.json`.
+For `Hello_original`, set `--slots 12 --atlas-columns 1 --pipeline on --matrix-plan external_hello_renderplan.json`. The original experiment recorded per-run timings and fresh-React hashes in `TRUE_STATIC_COMPILER_RUNS.csv` and `TRUE_STATIC_COMPILER_RESULTS.json`. Those raw evidence files are **not included in this Git checkout**; the tables above are retained historical summaries, and promotion decisions require fresh comparable measurements.
