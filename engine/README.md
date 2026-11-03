@@ -14,7 +14,7 @@ Hello_original, SimpleSequences, MovingTiles, ManyCards, GradientMotion. In each
 
 ## To reproduce in the same environment
 
-Requires Node.js, `typescript`, `esbuild`, `remotion`, `react`, and the renderer's existing dependencies under `node_modules`; FFmpeg; a patched Chromium build supporting `--remotion-shared-memory-capture`; Linux-compatible `atlas_native.node` (included; rebuild for other architectures). Set `REMOTION_BROWSER` to the Chromium executable. It is not a portable npm package.
+Requires Node.js, `typescript`, `esbuild`, `remotion`, `react`, and the renderer's existing dependencies under `node_modules`; FFmpeg; a patched Chromium build supporting `--remotion-shared-memory-capture`; Linux-compatible `atlas_native.node` (generated locally from `native/atlas_native.cc`). Set `REMOTION_BROWSER` to the Chromium executable. It is not a portable npm package.
 
 ```bash
 node prepare_compiled_scene.js ManyCards

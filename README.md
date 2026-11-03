@@ -22,18 +22,18 @@ and FFmpeg encoding. See [architecture](docs/architecture.md) and
 
 ```bash
 npm ci
-npm run build:native
+npm run build
 export MINIATOR_BROWSER=/path/to/compatible/chrome-headless-shell
 npm run doctor
 npm test
-npx miniator prepare Hello_original
 npx miniator render --mode chosen --reps 1 --output ./run-output
 ```
 
-The repository carries the existing precompiled scene bundles to preserve
-reference behavior. `miniator prepare` regenerates bundles for the selected
-fixture, updating scene-specific manifests; commit intentional source changes
-separately from regeneration.
+No generated scene bundles are tracked or shipped in Git. `npm run build:scene`
+regenerates all required browser bundles locally from source and the externally
+installed dependencies. `miniator prepare` switches the benchmark fixture and
+rebuilds its bundles. Do not commit generated files. Miniator never vendors
+Remotion sources, binaries, or generated bundles.
 
 The public Node API (`require('miniator').render(...)`) is an **experimental
 subprocess adapter**. It currently launches one worker per call and does not
@@ -64,3 +64,7 @@ More: [reproduction](docs/development.md), [benchmarks](docs/benchmarking.md).
 ## Licensing
 
 No public license is selected. See [LICENSE.md](LICENSE.md).
+
+## Third-party-code policy
+
+No Remotion source files, npm packages, or compiled/browser bundles are committed. The external competitor runs through its installed CLI (`npm run benchmark:remotion`). Legacy Remotion-compatible scene fixtures call its APIs via development dependencies. `npm run check:third-party` enforces the source boundary.

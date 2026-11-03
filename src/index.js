@@ -23,7 +23,7 @@ function render({args=[],browserPath,ffmpegPath,signal,onStdout,onStderr}={}){
  return execute('plan_renderer.js',args,{signal,onStdout,onStderr,env:{...(browserPath?{MINIATOR_BROWSER:browserPath}:{}),...(ffmpegPath?{MINIATOR_FFMPEG:ffmpegPath}:{})}});
 }
 function prepareScene(scene,options={}){
- if(!/^(Hello_original|SimpleSequences|MovingTiles|ManyCards|GradientMotion)$/.test(scene))throw new Error('Unsupported preparation fixture');
+ if(!/^(Hello_original|SimpleSequences|MovingTiles|ManyCards|GradientMotion|ComplexEffects|SeparatedEffects)$/.test(scene))throw new Error('Unsupported preparation fixture');
  return execute('prepare_compiled_scene.js',[scene],options);
 }
 function compileStatic(scene,options={}){

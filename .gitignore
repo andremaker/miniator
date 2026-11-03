@@ -13,3 +13,15 @@ coverage/
 benchmarks/results/
 *.pid
 !tests/reference/*.mp4
+
+# Bundled third-party code is generated locally, never versioned.
+engine/precompiled/
+engine/static_entry.js
+engine/compiler_entry.js
+engine/remotion_compiler_shim.js
+engine/source/generated_static.tsx
+engine/source/generated_static.tsx.analysis.json
+node_modules
+engine/bundle_manifest.json
+engine/scene_fixture.json
+engine/source/Hello.tsx

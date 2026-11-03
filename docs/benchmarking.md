@@ -17,3 +17,7 @@ Keep losing candidates in the optimization catalog and never rank by historical
 medians across different hosts.
 
 This migration itself intentionally does not change optimization algorithms.
+
+## Third-party-code boundary
+
+Remotion is installed externally for the benchmark opponent and legacy compatibility fixtures only. Source or generated browser bundles from Remotion must never be tracked in this repository. The external Remotion runner may use only its installed API or CLI. The current legacy Miniator scene adapter invokes Remotion APIs, including internal context APIs; this is an acknowledged compatibility dependency, not a vendored implementation, and is not a stable general-purpose integration.

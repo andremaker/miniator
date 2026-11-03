@@ -15,7 +15,7 @@
   ],
   "scripts": {
     "build:native": "node scripts/build-native.js",
-    "build:scene": "node engine/prepare_compiled_scene.js Hello_original",
+    "build:scene": "node engine/prepare_compiled_scene.js SeparatedEffects",
     "build": "npm run build:native && npm run build:scene",
     "test:unit": "node --test tests/unit/*.test.js",
     "test:integration": "node --test tests/integration/*.test.js",
@@ -25,17 +25,21 @@
     "doctor": "node scripts/doctor.js",
     "render": "node bin/miniator.js render",
     "prepare": "node bin/miniator.js prepare",
-    "check": "node scripts/check.js"
+    "check": "node scripts/check.js && npm run check:third-party",
+    "check:third-party": "node scripts/check-third-party-boundary.js",
+    "benchmark:remotion": "node benchmarks/remotion-cli.js"
   },
   "dependencies": {
-    "@remotion/cli": "4.0.537",
-    "@remotion/renderer": "4.0.537",
-    "@remotion/bundler": "4.0.537",
     "esbuild": "0.28.1",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "remotion": "4.0.537",
     "typescript": "5.9.3",
     "ws": "8.21.0"
+  },
+  "devDependencies": {
+    "@remotion/cli": "4.0.537",
+    "@remotion/renderer": "4.0.537",
+    "@remotion/bundler": "4.0.537",
+    "remotion": "4.0.537"
   }
 }

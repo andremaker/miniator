@@ -1,13 +1,13 @@
 # Development workflow
 
 1. `npm ci` (requires npm registry access; fixed versions in `package-lock.json`).
-2. `npm run build:native`.
+2. `npm run build` (native addon and local scene bundles).
 3. Set `MINIATOR_BROWSER` to the compatible patched Chromium shell.
 4. `npm run doctor` and `npm test`.
 5. `npm run smoke` to execute one real small-scene render and probe video frames.
 
-Use the existing generated bundles as a baseline. Rebuild via
-`npx miniator prepare <scene>` when intentionally changing the scene source.
+Scene bundles are local build products and must not be committed. Rebuild via
+`npx miniator prepare <scene>` when intentionally changing the benchmark scene source.
 This mutates `engine/source/Hello.tsx`, scene fixture, and bundles; do not run
 concurrent preparations in the same checkout.
 
@@ -20,3 +20,5 @@ clean shared-memory pools after interruption, and never benchmark during builds.
 
 Only use fresh matched measurements, preferably interleaved. Validate captured
 region coverage and frame counts, not only aggregate SSIM.
+
+Remotion packages may be installed as external benchmark/fixture dependencies. Never copy or commit source or bundled output from those packages. `engine/precompiled/` is Git-ignored. The current compatibility adapter still invokes externally installed Remotion APIs for Remotion-authored scene fixtures; removing this coupling from the general engine is future work.
