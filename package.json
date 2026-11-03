@@ -1,6 +1,6 @@
 {
   "name": "miniator",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Experimental predictive-atlas HTML/React-to-video renderer",
   "main": "src/index.js",
