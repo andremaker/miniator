@@ -20,4 +20,4 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - run: npm ci && npm run build:native && npm run smoke
+      - run: npm ci && npm run build && npm run smoke

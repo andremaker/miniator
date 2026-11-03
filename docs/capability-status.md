@@ -17,3 +17,7 @@
 Historical benchmark evidence is kept independently from this migration.
 The original renamed Miniator source archive is the baseline; no optimization
 should be removed just because one fixture does not benefit.
+
+## External Remotion dependency boundary
+
+The source repository does not vendor Remotion library implementation or browser bundles. The legacy React fixture path currently imports **Remotion APIs including `Internals`** through an installed development dependency. That is an API integration, not copied source code, but it means the compatibility runner is not yet independently executable without Remotion packages at scene-build time. Removing that runtime API coupling while preserving source fidelity is future work; do not describe the engine as completely Remotion-independent yet. The comparator itself is CLI-only under `benchmarks/`.
