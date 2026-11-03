@@ -1,0 +1,10 @@
+name: Manual benchmark guide
+on:
+  workflow_dispatch:
+jobs:
+  documentation:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: cat docs/benchmarking.md
+      # Never compare timing numbers on shared CI as a promotion gate.

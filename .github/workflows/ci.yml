@@ -1,0 +1,23 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build:native
+      - run: npm run check
+      - run: npm test
+      - run: npm run doctor || true
+        # Patched Chromium is separately provisioned and not on CI machines.
+  rendering-smoke:
+    if: false # Enable only on a managed runner with the patched Chromium build.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci && npm run build:native && npm run smoke
