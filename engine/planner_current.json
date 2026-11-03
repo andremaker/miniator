@@ -1,0 +1,30 @@
+{
+  "background": "172032",
+  "single": {
+    "x": 30,
+    "y": 114,
+    "width": 920,
+    "height": 232
+  },
+  "regions": [
+    {
+      "x": 30,
+      "y": 114,
+      "width": 236,
+      "height": 232
+    },
+    {
+      "x": 730,
+      "y": 114,
+      "width": 220,
+      "height": 232
+    }
+  ],
+  "source_sha256": "b43cb8e8934797baaa2fefd5d3c0dcc6801d5581eba912fe21f02303a7573a45",
+  "composition": {
+    "width": 960,
+    "height": 540,
+    "fps": 30,
+    "durationInFrames": 90
+  }
+}

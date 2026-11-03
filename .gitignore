@@ -1,0 +1,15 @@
+node_modules/
+engine/atlas_native.node
+engine/compiled/
+engine/benchmarks/
+engine/output/
+*.mp4
+*.webm
+*.log
+*.tmp
+.DS_Store
+.coverage/
+coverage/
+benchmarks/results/
+*.pid
+!tests/reference/*.mp4

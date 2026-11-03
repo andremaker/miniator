@@ -1,0 +1,19 @@
+{
+  "scene": "source/Hello.tsx",
+  "composition": {
+    "width": 960,
+    "height": 540,
+    "fps": 30,
+    "durationInFrames": 90
+  },
+  "reference_mp4_sha256": "44bec9b1f83e5ec576a0443dae87973d0c605178fc87b748dfe5ef9d9de8f3c1",
+  "encoder": {
+    "codec": "libx264",
+    "preset": "ultrafast",
+    "crf": 23,
+    "threads": 2,
+    "pixelFormat": "yuv420p",
+    "fragmentDuration": 1000000
+  },
+  "adapter": "source/scene_adapter.tsx"
+}

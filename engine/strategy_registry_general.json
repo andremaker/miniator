@@ -1,0 +1,280 @@
+{
+  "schema_version": 1,
+  "choices": [
+    {
+      "source_sha256": "4265c5ed66ae1b5cca01f26b2026754d8d0586ecc8a78e800a5b1d040dd5c7db",
+      "params_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "composition": {
+        "width": 1920,
+        "height": 1080,
+        "fps": 30,
+        "durationInFrames": 120
+      },
+      "qa_passed": true,
+      "strategy": "single-roi",
+      "tabs": 4,
+      "slots": 4,
+      "background": "141414",
+      "single": {
+        "x": 560,
+        "y": 300,
+        "width": 800,
+        "height": 500
+      },
+      "regions": null,
+      "repeat": {
+        "type": "identical-trailing-frames",
+        "start": 90,
+        "clones": 29
+      },
+      "validation": {
+        "scene": "Hello_original",
+        "measured_median_ms": 681.45,
+        "qa": {
+          "scene": "Hello_original",
+          "tabs": 4,
+          "name": "single-roi",
+          "valid": true,
+          "median_ms": 681.45,
+          "quality": {
+            "ssim": 1.0,
+            "coverage": {
+              "frames": 120,
+              "peak_background_deviation": 1,
+              "outside_pixels_above8": 0
+            }
+          },
+          "runs": 2
+        },
+        "scoped_to": "source hash, empty props and composition"
+      }
+    },
+    {
+      "source_sha256": "ab2bb6e2c90c8979e4691f4af6c3233ffdf9882dfe67fd4b25123b48dee54b67",
+      "params_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "composition": {
+        "width": 960,
+        "height": 540,
+        "fps": 30,
+        "durationInFrames": 90
+      },
+      "qa_passed": true,
+      "strategy": "full-static",
+      "tabs": 3,
+      "slots": 4,
+      "background": null,
+      "single": null,
+      "regions": null,
+      "repeat": null,
+      "validation": {
+        "scene": "SimpleSequences",
+        "measured_median_ms": 511.2,
+        "qa": {
+          "scene": "SimpleSequences",
+          "tabs": 3,
+          "name": "full-static",
+          "valid": true,
+          "median_ms": 511.2,
+          "quality": {
+            "exact": true
+          },
+          "runs": 2
+        },
+        "scoped_to": "source hash, empty props and composition"
+      }
+    },
+    {
+      "source_sha256": "fd3b419f03653c29cfb7982facab7034d1d721d70e16cc7536bcac5f8d221257",
+      "params_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "composition": {
+        "width": 960,
+        "height": 540,
+        "fps": 30,
+        "durationInFrames": 90
+      },
+      "qa_passed": true,
+      "strategy": "full-static",
+      "tabs": 4,
+      "slots": 4,
+      "background": null,
+      "single": null,
+      "regions": null,
+      "repeat": null,
+      "validation": {
+        "scene": "MovingTiles",
+        "measured_median_ms": 651.9999999999999,
+        "qa": {
+          "scene": "MovingTiles",
+          "tabs": 4,
+          "name": "full-static",
+          "valid": true,
+          "median_ms": 651.9999999999999,
+          "quality": {
+            "exact": true
+          },
+          "runs": 2
+        },
+        "scoped_to": "source hash, empty props and composition"
+      }
+    },
+    {
+      "source_sha256": "38cad95ce8dc5383b06560d25becd29cedcd6189545a499801314a84a053b42b",
+      "params_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "composition": {
+        "width": 960,
+        "height": 540,
+        "fps": 30,
+        "durationInFrames": 90
+      },
+      "qa_passed": true,
+      "strategy": "full-static",
+      "tabs": 4,
+      "slots": 4,
+      "background": null,
+      "single": null,
+      "regions": null,
+      "repeat": null,
+      "validation": {
+        "scene": "ManyCards",
+        "measured_median_ms": 711.15,
+        "qa": {
+          "scene": "ManyCards",
+          "tabs": 4,
+          "name": "full-static",
+          "valid": true,
+          "median_ms": 711.15,
+          "quality": {
+            "exact": true
+          },
+          "runs": 2
+        },
+        "scoped_to": "source hash, empty props and composition"
+      }
+    },
+    {
+      "source_sha256": "8204e49b89a1cd7218f2622c8ea3dd97960aaabcdfcbe4baa788f595f6d5b734",
+      "params_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "composition": {
+        "width": 960,
+        "height": 540,
+        "fps": 30,
+        "durationInFrames": 90
+      },
+      "qa_passed": true,
+      "strategy": "full-static",
+      "tabs": 4,
+      "slots": 4,
+      "background": null,
+      "single": null,
+      "regions": null,
+      "repeat": null,
+      "validation": {
+        "scene": "GradientMotion",
+        "measured_median_ms": 864.5,
+        "qa": {
+          "scene": "GradientMotion",
+          "tabs": 4,
+          "name": "full-static",
+          "valid": true,
+          "median_ms": 864.5,
+          "quality": {
+            "exact": true
+          },
+          "runs": 2
+        },
+        "scoped_to": "source hash, empty props and composition"
+      }
+    },
+    {
+      "source_sha256": "ea4fbc334731c810f4d70db139adaa20d68fda6f9f6c78488a105e3de3329ef0",
+      "params_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "composition": {
+        "width": 960,
+        "height": 540,
+        "fps": 30,
+        "durationInFrames": 90
+      },
+      "qa_passed": true,
+      "strategy": "single-roi",
+      "tabs": 4,
+      "slots": 16,
+      "background": "172032",
+      "single": {
+        "x": 214,
+        "y": 110,
+        "width": 326,
+        "height": 280
+      },
+      "regions": null,
+      "repeat": null,
+      "validation": {
+        "scene": "ComplexEffects",
+        "measured_median_ms": 221.20000000000002,
+        "qa": {
+          "scene": "ComplexEffects",
+          "slots": 16,
+          "tabs": 4,
+          "mode": "single-roi",
+          "median_ms": 221.20000000000002,
+          "ssim": 0.999922,
+          "frames": 90,
+          "repeat_exact": true,
+          "valid": true
+        },
+        "scoped_to": "source hash, empty props and composition"
+      }
+    },
+    {
+      "source_sha256": "b43cb8e8934797baaa2fefd5d3c0dcc6801d5581eba912fe21f02303a7573a45",
+      "params_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "composition": {
+        "width": 960,
+        "height": 540,
+        "fps": 30,
+        "durationInFrames": 90
+      },
+      "qa_passed": true,
+      "strategy": "packed-regions",
+      "tabs": 4,
+      "slots": 8,
+      "background": "172032",
+      "single": {
+        "x": 30,
+        "y": 114,
+        "width": 920,
+        "height": 232
+      },
+      "regions": [
+        {
+          "x": 30,
+          "y": 114,
+          "width": 236,
+          "height": 232
+        },
+        {
+          "x": 730,
+          "y": 114,
+          "width": 220,
+          "height": 232
+        }
+      ],
+      "repeat": null,
+      "validation": {
+        "scene": "SeparatedEffects",
+        "measured_median_ms": 252.9,
+        "qa": {
+          "scene": "SeparatedEffects",
+          "slots": 8,
+          "tabs": 4,
+          "mode": "packed-regions",
+          "median_ms": 252.9,
+          "ssim": 0.999878,
+          "frames": 90,
+          "repeat_exact": true,
+          "valid": true
+        },
+        "scoped_to": "source hash, empty props and composition"
+      }
+    }
+  ]
+}

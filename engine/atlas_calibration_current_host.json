@@ -1,0 +1,268 @@
+{
+  "schema_version": 1,
+  "generated_utc": "2026-11-03T01:29:18.251566+00:00",
+  "cpu_max": "400000 100000",
+  "memory_max": "4294967296",
+  "policy": "Prior QA-approved path is retained unless source-matched predictive/combined candidate leads by 4% and passes frame-count/SSIM gate; recalibrate under new host load. No frame outputs or DOM read by allocator.",
+  "choices": [
+    {
+      "source_sha256": "4265c5ed66ae1b5cca01f26b2026754d8d0586ecc8a78e800a5b1d040dd5c7db",
+      "params_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "composition": {
+        "width": 1920,
+        "height": 1080,
+        "fps": 30,
+        "durationInFrames": 120
+      },
+      "capture_strategy": "single-roi",
+      "qa_passed": true,
+      "selected": {
+        "name": "single-roi+tail+static",
+        "tabs": 4,
+        "slots": 8,
+        "dom": "staticjs"
+      },
+      "samples": 3,
+      "median_ms": 582.1,
+      "observations": [
+        {
+          "variant": "previous",
+          "tabs": 4,
+          "slots": 8,
+          "median_ms": 679.85,
+          "runs": 2
+        },
+        {
+          "variant": "predictive_or_combo",
+          "tabs": 4,
+          "slots": 8,
+          "median_ms": 582.1,
+          "runs": 3
+        }
+      ],
+      "decision": "provisional-speedup"
+    },
+    {
+      "source_sha256": "ab2bb6e2c90c8979e4691f4af6c3233ffdf9882dfe67fd4b25123b48dee54b67",
+      "params_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "composition": {
+        "width": 960,
+        "height": 540,
+        "fps": 30,
+        "durationInFrames": 90
+      },
+      "capture_strategy": "full-static",
+      "qa_passed": true,
+      "selected": {
+        "name": "full-static",
+        "tabs": 3,
+        "slots": 4,
+        "dom": "staticjs"
+      },
+      "samples": 2,
+      "median_ms": 496.15,
+      "observations": [
+        {
+          "variant": "previous",
+          "tabs": 3,
+          "slots": 4,
+          "median_ms": 496.15,
+          "runs": 2
+        },
+        {
+          "variant": "predictive_or_combo",
+          "tabs": 3,
+          "slots": 10,
+          "median_ms": 531.6,
+          "runs": 2
+        }
+      ],
+      "decision": "retain-prior-insufficient-margin"
+    },
+    {
+      "source_sha256": "fd3b419f03653c29cfb7982facab7034d1d721d70e16cc7536bcac5f8d221257",
+      "params_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "composition": {
+        "width": 960,
+        "height": 540,
+        "fps": 30,
+        "durationInFrames": 90
+      },
+      "capture_strategy": "full-static",
+      "qa_passed": true,
+      "selected": {
+        "name": "full-static",
+        "tabs": 3,
+        "slots": 10,
+        "dom": "staticjs"
+      },
+      "samples": 2,
+      "median_ms": 615.55,
+      "observations": [
+        {
+          "variant": "previous",
+          "tabs": 4,
+          "slots": 4,
+          "median_ms": 647.75,
+          "runs": 2
+        },
+        {
+          "variant": "predictive_or_combo",
+          "tabs": 3,
+          "slots": 10,
+          "median_ms": 615.55,
+          "runs": 2
+        }
+      ],
+      "decision": "provisional-speedup"
+    },
+    {
+      "source_sha256": "38cad95ce8dc5383b06560d25becd29cedcd6189545a499801314a84a053b42b",
+      "params_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "composition": {
+        "width": 960,
+        "height": 540,
+        "fps": 30,
+        "durationInFrames": 90
+      },
+      "capture_strategy": "full-static",
+      "qa_passed": true,
+      "selected": {
+        "name": "full-static",
+        "tabs": 4,
+        "slots": 4,
+        "dom": "staticjs"
+      },
+      "samples": 2,
+      "median_ms": 693.2,
+      "observations": [
+        {
+          "variant": "previous",
+          "tabs": 4,
+          "slots": 4,
+          "median_ms": 693.2,
+          "runs": 2
+        },
+        {
+          "variant": "predictive_or_combo",
+          "tabs": 3,
+          "slots": 10,
+          "median_ms": 711.45,
+          "runs": 2
+        }
+      ],
+      "decision": "retain-prior-insufficient-margin"
+    },
+    {
+      "source_sha256": "8204e49b89a1cd7218f2622c8ea3dd97960aaabcdfcbe4baa788f595f6d5b734",
+      "params_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "composition": {
+        "width": 960,
+        "height": 540,
+        "fps": 30,
+        "durationInFrames": 90
+      },
+      "capture_strategy": "full-static",
+      "qa_passed": true,
+      "selected": {
+        "name": "full-static",
+        "tabs": 4,
+        "slots": 4,
+        "dom": "staticjs"
+      },
+      "samples": 2,
+      "median_ms": 861.4,
+      "observations": [
+        {
+          "variant": "previous",
+          "tabs": 4,
+          "slots": 4,
+          "median_ms": 861.4,
+          "runs": 2
+        },
+        {
+          "variant": "predictive_or_combo",
+          "tabs": 4,
+          "slots": 6,
+          "median_ms": 851.35,
+          "runs": 2
+        }
+      ],
+      "decision": "retain-prior-insufficient-margin"
+    },
+    {
+      "source_sha256": "ea4fbc334731c810f4d70db139adaa20d68fda6f9f6c78488a105e3de3329ef0",
+      "params_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "composition": {
+        "width": 960,
+        "height": 540,
+        "fps": 30,
+        "durationInFrames": 90
+      },
+      "capture_strategy": "single-roi",
+      "qa_passed": true,
+      "selected": {
+        "name": "single-roi",
+        "tabs": 4,
+        "slots": 16,
+        "dom": "react"
+      },
+      "samples": 2,
+      "median_ms": 211.4,
+      "observations": [
+        {
+          "variant": "previous",
+          "tabs": 4,
+          "slots": 16,
+          "median_ms": 211.4,
+          "runs": 2
+        },
+        {
+          "variant": "predictive_or_combo",
+          "tabs": 4,
+          "slots": 13,
+          "median_ms": 218.75,
+          "runs": 2
+        }
+      ],
+      "decision": "retain-prior-insufficient-margin"
+    },
+    {
+      "source_sha256": "b43cb8e8934797baaa2fefd5d3c0dcc6801d5581eba912fe21f02303a7573a45",
+      "params_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "composition": {
+        "width": 960,
+        "height": 540,
+        "fps": 30,
+        "durationInFrames": 90
+      },
+      "capture_strategy": "packed-regions",
+      "qa_passed": true,
+      "selected": {
+        "name": "packed-regions",
+        "tabs": 4,
+        "slots": 8,
+        "dom": "react"
+      },
+      "samples": 2,
+      "median_ms": 276.2,
+      "observations": [
+        {
+          "variant": "previous",
+          "tabs": 4,
+          "slots": 8,
+          "median_ms": 276.2,
+          "runs": 2
+        },
+        {
+          "variant": "predictive_or_combo",
+          "tabs": 3,
+          "slots": 11,
+          "median_ms": 278.0,
+          "runs": 2
+        }
+      ],
+      "decision": "retain-prior-insufficient-margin"
+    }
+  ]
+}
