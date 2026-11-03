@@ -1,0 +1,41 @@
+{
+  "name": "miniator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Experimental predictive-atlas HTML/React-to-video renderer",
+  "main": "src/index.js",
+  "bin": {
+    "miniator": "bin/miniator.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "os": [
+    "linux"
+  ],
+  "scripts": {
+    "build:native": "node scripts/build-native.js",
+    "build:scene": "node engine/prepare_compiled_scene.js Hello_original",
+    "build": "npm run build:native && npm run build:scene",
+    "test:unit": "node --test tests/unit/*.test.js",
+    "test:integration": "node --test tests/integration/*.test.js",
+    "test": "npm run test:unit && npm run test:integration && npm run test:fidelity",
+    "test:fidelity": "node --test tests/fidelity/*.test.js",
+    "smoke": "node scripts/smoke.js",
+    "doctor": "node scripts/doctor.js",
+    "render": "node bin/miniator.js render",
+    "prepare": "node bin/miniator.js prepare",
+    "check": "node scripts/check.js"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.537",
+    "@remotion/renderer": "4.0.537",
+    "@remotion/bundler": "4.0.537",
+    "esbuild": "0.28.1",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "remotion": "4.0.537",
+    "typescript": "5.9.3",
+    "ws": "8.21.0"
+  }
+}
