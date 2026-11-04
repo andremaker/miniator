@@ -1,38 +1,34 @@
 # Rendering architecture
 
-This document describes the current Miniator rendering components and their data flow. The renderer is implemented largely in `engine/plan_renderer.js`; the boundaries below are functional responsibilities, not a claim that every subsystem is already an independent module.
+Miniator is a CEF-only renderer. CEF is built and installed **outside the repository** and communicates with Miniator through the source-owned `cef/miniator_cef_bridge.cc` host and `cef/transport.js` JSON-lines transport. The bridge uses CEF `OnPaint` and explicit `SendExternalBeginFrame()` scheduling, not browser screenshot encoding.
 
-## Execution flow
+## Pipeline
 
-1. **Input selection:** a prepared TSX scene, `scene_fixture.json`, and optional RenderPlan/strategy registry describe the composition and supported strategies.
-2. **Planning:** the strategy selector determines whether full-frame, ROI, packed-region, repetition, and static-DOM execution are usable for this source/input configuration. The atlas-capacity model predicts candidate concurrency and memory use.
-3. **Pre-render atlas allocation:** when `--predictive-atlas on` is enabled, `predictive_atlas_plan.js` constructs a frame-to-batch schedule **before DOM frame updates**. Predicted capture geometry and complexity must come from safe source/plan assumptions, not pixels read after rendering.
-4. **Browser execution:** multiple tabs run in a compatible patched Chromium through CDP. Slots represent frames in a browser atlas; the renderer can reuse allocated tabs within the process.
-5. **Pixel transfer:** patched Chromium writes BGRA to a POSIX shared-memory frame pool. The C++ Node-API addon `atlas_native.node` maps the pool and extracts tiles or packed regions.
-6. **Video encoding:** FFmpeg consumes raw frames and reconstructs omitted regions when the plan permits. Tail-frame repetition and pipeline overlap are conditional.
+1. Prepare a React/HTML composition and its animation timeline using `engine/source/timeline.tsx` and `engine/timeline_math.js`.
+2. Plan frame batches and choose full-frame or predicted ROI/packed capture for supported source geometry. Unpredictable visual effects fall back conservatively.
+3. Render multiple frame slots per CEF tab. The process reuses CEF tabs across supported jobs.
+4. Set a unique RGB correlation marker in a **reserved final viewport column** after the batch's DOM updates. The native bridge retries paints until it sees the expected marker at the bottom-right pixel. This avoids accepting stale `OnPaint` images. That column is excluded from all video tiles.
+5. Copy the resulting uncompressed BGRA atlas into a POSIX shared-memory frame pool; the native Node-API addon extracts individual tiles or packed rectangles directly into buffers.
+6. Feed raw BGRA to FFmpeg over stdin; conditional YUV-before-pad, ROI reconstruction, pipeline overlap and tail repetition reduce work when applicable.
 
-## Implementation map
+No PNG/JPEG stage, intermediate image files, alternate browser runtime or foreign composition framework are used in the rendering path.
 
-| Component | Main files | Responsibility |
-| --- | --- | --- |
-| Orchestrator | `engine/plan_renderer.js` | Chrome lifecycle/CDP, capture batches, native addon calls, FFmpeg, timing and selected-mode dispatch |
-| Capacity model | `engine/atlas_capacity_planner.js` | Memory-based tab/slot candidates, coarse scene complexity, atlas geometry |
-| Batch scheduler | `engine/predictive_atlas_plan.js` | Cost estimation for predicted frames, variable batch occupancy, cache for parameter-dependent plan descriptors |
-| Static compiler | `engine/dependency_transform.js`, `engine/build_static.js` | Bounded TSX dataflow analysis and updater generation |
-| DOM runtime | `engine/static_runtime.js`, `engine/source/` | Browser-side scene installation and frame updates |
-| Native pixels | `native/atlas_native.cc`, `native/binding.gyp` | POSIX SHM mapping and atlas frame extraction |
-| Public wrapper | `src/index.js`, `bin/miniator.js` | Fixture preparation and subprocess execution |
+## Key source files
 
-## Planning and validity boundaries
+| Concern | Files |
+| --- | --- |
+| Native CEF host and scheduling | `cef/miniator_cef_bridge.cc`, `cef/transport.js` |
+| Browser capture, atlas lifecycle, FFmpeg | `engine/plan_renderer.js` |
+| Timeline and animation math | `engine/source/timeline.tsx`, `engine/timeline_math.js` |
+| Scene preparation | `engine/prepare_compiled_scene.js` |
+| Frame dependency compilation | `engine/dependency_transform.js`, `engine/build_static.js`, `engine/compiled_runtime.js` |
+| Source-level geometry inference | `engine/runtime_math.js` |
+| Memory/concurrency planning | `engine/atlas_capacity_planner.js`, `engine/predictive_atlas_plan.js` |
+| Shared-memory BGRA extraction | `native/atlas_native.cc` |
+| Process API | `src/index.js`, `bin/miniator.js` |
 
-The scheduler supports distinct predicted costs per frame **as a library API**. The integrated renderer currently supplies a scene-level complexity estimate for every frame, not automatically derived per-frame complexity expressions. `compileTemplateAtlas()` can cache invariant plans and key dependent plans by declared parameter dependencies, but the compiler does not yet automatically emit validated parameter-dependency descriptors for arbitrary TSX.
+## Limitations
 
-The predictive execution path is **opt-in** with `--predictive-atlas on`; the guarded strategy registry may otherwise choose retained fixed-size configurations. Full-frame capture is an important fallback when the geometry prediction is unsupported. Packed regions must cover each changing island, not merely their bounding rectangle; verifying missed pixels remains separate from accepting small differences inside the captured area.
+The public API includes isolated external React/TSX compilation and parameterized sessions with CEF tab reuse. Each independent one-off render uses a fresh worker. The existing planner shares the same native capture backend across the modes. The AST ROI predictor supports a defined subset of expressions rather than arbitrary CSS/JS. Scene-specific performance and visual fidelity require testing. An external benchmark runner is deliberately separate from this repository.
 
-## External dependencies and operational constraints
-
-The patched Chromium exposes a custom frame-pool CDP interface; stock Chromium does not satisfy this requirement. The native addon requires Linux/POSIX shared memory. Atlas size, tab concurrency, frame-pool surface copies, memory use, and FFmpeg work can interact strongly under load. The public API currently starts a fresh worker process per render call.
-
-The source fixtures still use installed Remotion APIs for compatibility, including internal context APIs in some adapters. This is a portability limitation; the Remotion renderer itself is an external benchmark opponent, not a bundled engine implementation.
-
-For supported behaviors see [capability status](capability-status.md). For changing code safely see [development](development.md).
+See [capabilities](capability-status.md), [development](development.md) and [benchmark methodology](benchmarking.md).

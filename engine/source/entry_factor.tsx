@@ -1,7 +1,7 @@
 import React, {useMemo} from 'react';
 import {createRoot} from 'react-dom/client';
 import {flushSync} from 'react-dom';
-import {Internals} from 'remotion';
+import {MiniatorFrameProvider} from './timeline';
 import {Scene} from './scene_adapter';
 
 // Runtime-input-sensitive factoring. There is exactly one React scene per tab.
@@ -14,22 +14,9 @@ const {width,height,fps,durationInFrames}=conf.composition;
 const {x,y,width:tileWidth,height:tileHeight}=conf.capture;
 const slots=conf.execution.slots;
 const columns=conf.execution.columns||slots;
-const id='miniator-scene';
-const env={isPlayer:true,isRendering:false,isStudio:false,isClientSideRendering:false,isReadOnlyStudio:false};
-const composition={component:Scene,durationInFrames,width,height,fps,id,order:null,folderName:null,parentFolderName:null,schema:null,calculateMetadata:null,stack:null};
-const manager={compositions:[composition],folders:[],currentAssetMetadata:null,currentCompositionMetadata:{defaultCodec:null,defaultOutName:null,defaultPixelFormat:null,defaultProResProfile:null,defaultSampleRate:null,defaultVideoImageFormat:null,durationInFrames,width,height,fps,props:{}},canvasContent:{type:'composition' as const,compositionId:id}};
-const logLevel={logLevel:'error' as const,mountTime:Date.now()};
+const videoConfig={width,height,fps,durationInFrames};
 function OriginalFrame({frame}:{frame:number}){
- const timeline=useMemo(()=>({frame:{[id]:frame},isPlaying:()=>false,isInsideFreeze:false,audioAndVideoTags:{current:[]}}),[frame]);
- return <Internals.IsPlayerContextProvider><Internals.RemotionEnvironmentContext.Provider value={env}>
- <Internals.LogLevelContext.Provider value={logLevel}><Internals.CanUseRemotionHooksProvider>
- <Internals.CompositionManager.Provider value={manager}><Internals.VideoProvider>
- <Internals.TimelineContext.Provider value={timeline}><Internals.AbsoluteTimeContext.Provider value={timeline}>
- <Scene/>
- </Internals.AbsoluteTimeContext.Provider></Internals.TimelineContext.Provider>
- </Internals.VideoProvider></Internals.CompositionManager.Provider>
- </Internals.CanUseRemotionHooksProvider></Internals.LogLevelContext.Provider>
- </Internals.RemotionEnvironmentContext.Provider></Internals.IsPlayerContextProvider>;
+ return <MiniatorFrameProvider frame={frame} config={videoConfig}><Scene/></MiniatorFrameProvider>;
 }
 const app=document.getElementById('app')!;
 const hidden=document.createElement('div');
@@ -72,5 +59,5 @@ function evaluateFrame(slot:number,frame:number){
  }
  return frames;
 };
-(window as any).remotionAtlasReady=async()=>{await (document as any).fonts.ready;return true;};
+(window as any).miniatorAtlasReady=async()=>{await (document as any).fonts.ready;return true;};
 (window as any).drawBatch(0,durationInFrames,slots);

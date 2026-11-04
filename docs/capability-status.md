@@ -1,29 +1,19 @@
-# Capability and support matrix
+# Capability status
 
-This matrix records the **current implementation boundary**, not a roadmap disguised as supported functionality. A successful fixture benchmark does not imply arbitrary React or media support.
+| Capability | Present status |
+| --- | --- |
+| CEF `OnPaint` offscreen capture | Native bridge builds and real capture test passes with CEF 154 |
+| Correlated on-demand frame capture | 1-pixel reserved-column nonce; 48-frame, 4-tab stress/fidelity smoke passes |
+| POSIX BGRA shared memory and native atlas extraction | Verified against native CEF SDK; no image compression |
+| Direct FFmpeg raw BGRA | Verified 48-frame MP4 output, correct frame count and per-frame BGRA pixel checks |
+| Multi-tab atlas execution | 4 tabs × 4 slots passed isolated video transport test |
+| Source-level ROI prediction | Implemented for a constrained AST/DOM subset, conservative fallback |
+| Packed disjoint regions, YUV reconstruction | Source path retained; full integrated CEF fixture regression pending |
+| Static dependency compiler | Source path retained; full integrated CEF fixture regression pending |
+| Pipeline overlap, early encoder, trailing repetition | Source paths retained; fresh whole-render CEF benchmarks pending |
+| General source/props API and persistent cross-call worker | Not part of current fixture-oriented public adapter |
+| Arbitrary React/media/CSS parity | Not established |
 
-| Capability | Status | Scope and conditions |
-| --- | --- | --- |
-| Multi-tab frame atlases | Implemented | Renderer-managed concurrency; tab reuse is within a worker process. |
-| Direct BGRA shared-memory capture | Implemented | Requires compatible patched Chromium and Linux POSIX SHM. |
-| Native atlas tile extraction | Implemented | Builds from `native/atlas_native.cc`; platform-specific binary generated locally. |
-| Full-frame rendering | Available | Conservative fallback for unsupported ROI plans; still constrained by fixture adapter coverage. |
-| Single ROI / packed disjoint regions | Conditional | Source/input-matched geometry and reconstruction assumptions must hold. |
-| Static dependency compiler | Limited | Validated on five fixtures; does not cover arbitrary hooks, effects, portals or stateful JS. |
-| Repeated trailing frames | Conditional | Requires a valid equality instruction for the active scene and parameters. |
-| Predictive capacity estimator | Experimental | Uses geometry, scene-level complexity heuristics and memory budget; not a performance oracle. |
-| Pre-render variable-batch scheduler | Implemented, opt-in | `--predictive-atlas on`; current runner supplies constant complexity descriptors across frames. |
-| Template-plan dependency cache | Library capability | Supports declared dependencies; no automatic general TSX dependency certification or external reusable-template API. |
-| Public CLI and Node.js API | Experimental | Seven prepared fixtures; subprocess per render call, no stable general source API. |
-| Long-lived multi-job browser service | Not implemented | Independent `render()` calls do not share the browser. |
-| General image/video/audio inputs | Not established | Benchmark fixtures do not test production media loading/mixing. |
-| SVG/Canvas/WebGL and arbitrary React parity | Not established | No comprehensive compatibility corpus. |
-| Production isolation/cancellation | Not established | Shared generated fixture state and subprocess cleanup need hardening. |
+**Validation boundary:** A successful native video transport test establishes correct CEF capture, shared-memory transfer, tile extraction, timing correlation, and raw FFmpeg encoding for the tested geometry. It does **not** establish complete React fixture equivalence, arbitrary media support, or a benchmark ranking. Those require dependencies and separate matched-scene testing.
 
-## Build and runtime dependencies
-
-The rendering path needs patched Chromium, Linux native build support and FFmpeg. The repository includes **source** for native extraction but no prebuilt addon or browser. The benchmark competitor is Remotion, used via an installed CLI. Some included fixtures use installed Remotion APIs, including internal APIs, so the fixture pipeline is not fully framework-independent at build time.
-
-## Validation boundary
-
-Unit tests exercise planner logic, lightweight integration tests cover CLI/native exports, and offline fidelity tests use stored references. `npm run smoke` is the browser-backed check, requiring the patched browser. Tests currently do not establish general source loading, multi-user isolation, long-run memory safety or performance across realistic video projects. See [benchmarking](benchmarking.md) for valid comparison procedure and [API](api.md) for current callable functionality.
+The official CEF SDK must be supplied independently. No CEF SDK headers, executables, libraries or resources belong to the source repository.

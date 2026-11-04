@@ -1,5 +1,5 @@
 import React from 'react';
-import {AbsoluteFill, useCurrentFrame} from 'remotion';
+import {AbsoluteFill, useCurrentFrame} from './timeline';
 /** Locally authored negative control: moving full-frame gradient, translucency, blur. */
 export const Hello:React.FC=()=>{
  const f=useCurrentFrame();const x=f*1.7;

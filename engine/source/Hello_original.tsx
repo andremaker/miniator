@@ -1,5 +1,5 @@
 import React from 'react';
-import {AbsoluteFill, Sequence, interpolate, spring, useCurrentFrame, useVideoConfig} from 'remotion';
+import {AbsoluteFill, Sequence, interpolate, spring, useCurrentFrame, useVideoConfig} from './timeline';
 
 /** Publicly documented 120-frame title/counter comparison composition. */
 export const Hello: React.FC = () => {

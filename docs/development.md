@@ -1,50 +1,31 @@
-# Developer guide
+# Development
 
-This guide covers building, testing and changing Miniator. Start with [architecture](architecture.md) to understand which components share state and [capability status](capability-status.md) to avoid relying on unimplemented APIs.
+## Setup
 
-## Local setup
-
-Requirements: Linux x86-64, Node.js 22+, C++17 compiler and Node-API headers, compatible patched Chromium, FFmpeg/ffprobe.
+Requires Linux x64, Node.js 22+, C++20, CMake, Ninja, FFmpeg, an X display (such as Xvfb), and the **matching official CEF Minimal SDK installed outside the repository**.
 
 ```bash
 npm ci
 npm run build:native
+export CEF_ROOT=/absolute/path/to/external/cef-sdk
+npm run build:cef
 npm run build:scene
-export MINIATOR_BROWSER=/absolute/path/to/patched-chrome-headless-shell
 npm run doctor
 npm run check
-npm test
-npm run smoke
+CEF_ROOT="$CEF_ROOT" xvfb-run -a npm test
 ```
 
-`npm run build:scene` prepares `SeparatedEffects`. `npm run doctor` tests executable presence/version and installed dependencies, but full CDP/shared-memory compatibility must be exercised by `npm run smoke`. Local environment variables `MINIATOR_FFMPEG`, `CXX`, and `MINIATOR_NODE_HEADERS` can override the FFmpeg binary, compiler and Node header location.
+The CEF build writes its native bridge binary to `$CEF_ROOT/Release/miniator_cef_bridge`, and puts CMake files under the system temporary directory unless `MINIATOR_CEF_BUILD_DIR` is configured. The source repository must never contain CEF SDK headers, binaries, resources, or generated JavaScript bundles. The `engine/atlas_native.node` build artifact is also ignored.
 
-## Fixture build model
+`npm run build:scene` prepares the seven-scene test corpus. The scene compiler is not a fully general production composition ingestion API. `npm run smoke` renders a prepared scene and verifies the encoded frame count. `npm test` includes CEF-backed capture/video tests when `CEF_ROOT`, the built bridge, the addon and `DISPLAY` are available; otherwise those tests are skipped.
 
-`node bin/miniator.js prepare <fixture>` copies the selected TSX into `engine/source/Hello.tsx`, updates `engine/scene_fixture.json`, and regenerates files under `engine/precompiled/` and other ignored build locations. **This mutates shared workspace state.** Serialize fixture preparations or use separate worktrees when running tests in parallel. Generated bundles may contain installed third-party code and must not be committed.
+## Safety and regression policy
 
-`node bin/miniator.js compile-static <fixture>` compiles a bounded TSX subset; it is not guaranteed to work on every scene. The engine's selected-mode registry uses source/input hashes and conditional fallbacks; don't hardcode a historical winning strategy as universal.
+- Keep full-frame capture as fallback when ROI bounds cannot be proven to cover changed content.
+- Default `--damage-crop on` allows predicted ROI without historic QA certification; `--damage-crop off` selects full-frame capture.
+- Preserve multi-tab atlas reuse, native BGRA transfer, packed regions, static DOM strategies, FFmpeg overlap, and eligible repetition.
+- Native `OnPaint` correlation is mandatory to avoid stale surfaces. The reserved marker column is never encoded.
+- Benchmark identical inputs with prewarmed tabs, interleaved runs and separately accounted planning/compiler work.
+- No experimental optimizations should replace baseline behavior without measured visual and performance checks.
 
-## Running checks
-
-| Command | Purpose | Requirements |
-| --- | --- | --- |
-| `npm run check` | Syntax, JSON manifests, source namespace and third-party boundary | Git and Node.js |
-| `npm test` | Unit, lightweight integration, offline reference fidelity | Built addon and locally generated scene files for some tests |
-| `npm run smoke` | Browser capture -> native extraction -> MP4 and frame count | Patched Chromium and FFmpeg/ffprobe |
-| `npm run benchmark:remotion -- ...` | Invoke external CLI for comparison | Remotion dev dependencies and a valid Remotion entry point |
-
-CI's default job exercises build, check and tests. Browser-backed smoke and controlled performance comparisons require a provisioned runner; the default CI smoke job is disabled. Benchmark workflow is currently documentation-only, not an automated fairness harness.
-
-## Safe renderer changes
-
-1. Keep the last validated Miniator revision as a control and change one mechanism at a time.
-2. Preserve capabilities that can combine: static updates, packed/ROI capture, frame repetition, native BGRA transfer, pipeline overlap, warmed tabs and pre-render predictive batching.
-3. Benchmark old and new builds fresh under the same host load and scene inputs. Interleave repetitions; record median and spread.
-4. Validate frame count and outside-ROI changed content. Small in-region raster differences are acceptable in ROI mode when declared; strict pixel tests are separate.
-5. Log losing optimizations and their eligible workloads in the [optimization catalog](optimization-catalog.md).
-6. Clean up Chromium processes and `/dev/shm` pools, especially after timeouts. Never benchmark concurrently with builds or heavy QA.
-
-## Compatibility and project boundaries
-
-A patched Chromium implementing custom frame-pool CDP commands is required; stock Chrome is not a substitute. The browser binary, generated bundles and native `.node` binaries are not checked into source control. Remotion is used as an external benchmark opponent; some included fixture adapters still import installed Remotion APIs, which is a known compatibility dependency rather than bundled implementation code.
+The default CI validates source, compilation and fixture tests with normal npm dependencies. Native CEF full-path tests require a separately provisioned runner; a passing source-only CI is not proof of video fidelity.

@@ -1,7 +1,7 @@
 import React, {useMemo} from 'react';
 import {createRoot} from 'react-dom/client';
 import {flushSync} from 'react-dom';
-import {Internals} from 'remotion';
+import {MiniatorFrameProvider} from './timeline';
 import {Scene} from './scene_adapter';
 import {initializeMirrors,syncMirrors} from './mutation_mirror';
 
@@ -21,15 +21,10 @@ const columns=conf.execution.columns||count;
 const containment=conf.execution.containment||'hidden';
 const copyMode=conf.execution.copyMode||'react';
 if(copyMode==='mirror'&&conf.execution.allowDomMirror!==true)throw Error('DOM mirror requires explicit opt-in');
-const id='miniator-scene';
+const videoConfig={width,height,fps,durationInFrames};
 for(const r of regions){if(![r.x,r.y,r.width,r.height].every(Number.isInteger)||r.width<=0||r.height<=0||r.x<0||r.y<0||r.x+r.width>width||r.y+r.height>height)throw Error('Invalid region '+JSON.stringify(r));}
-const env={isPlayer:true,isRendering:false,isStudio:false,isClientSideRendering:false,isReadOnlyStudio:false};
-const composition={component:Scene,durationInFrames,width,height,fps,id,order:null,folderName:null,parentFolderName:null,schema:null,calculateMetadata:null,stack:null};
-const manager={compositions:[composition],folders:[],currentAssetMetadata:null,currentCompositionMetadata:{defaultCodec:null,defaultOutName:null,defaultPixelFormat:null,defaultProResProfile:null,defaultPixelFormat2:null,defaultAudioCodec:null,defaultProResProfile2:null,defaultVideoImageFormat:null,durationInFrames,width,height,fps,props:{}},canvasContent:{type:'composition' as const,compositionId:id}};
-const logLevel={logLevel:'error' as const,mountTime:Date.now()};
 function RegionView({slot,regionIndex,frame}:{slot:number,regionIndex:number,frame:number}){
   const region=regions[regionIndex];
-  const timeline=useMemo(()=>({frame:{[id]:frame},isPlaying:()=>false,isInsideFreeze:false,audioAndVideoTags:{current:[]}}),[frame]);
   let position=slot%columns*stripWidth;
   for(let i=0;i<regionIndex;i++)position+=regions[i].width;
   const outer:React.CSSProperties={position:'absolute',left:position,top:Math.floor(slot/columns)*stripHeight,width:region.width,height:region.height,
@@ -37,26 +32,12 @@ function RegionView({slot,regionIndex,frame}:{slot:number,regionIndex:number,fra
     ...(containment==='hidden-paint'?{overflow:'hidden',contain:'paint' as const}:{})};
   const inner:React.CSSProperties={position:'absolute',left:-region.x,top:-region.y,width,height};
   return <div style={outer}><div style={inner}>
-    <Internals.TimelineContext.Provider value={timeline}>
-      <Internals.AbsoluteTimeContext.Provider value={timeline}>
+    <MiniatorFrameProvider frame={frame} config={videoConfig}>
         {(copyMode==='clone'||copyMode==='mirror') ? (regionIndex===0 ? <div data-miniator-source={slot}><Scene /></div> : <div data-miniator-clone={`${slot}:${regionIndex}`} />) : <Scene />}
-      </Internals.AbsoluteTimeContext.Provider>
-    </Internals.TimelineContext.Provider>
+      </MiniatorFrameProvider>
   </div></div>;
 }
-const App=({frames}:{frames:number[]})=><Internals.IsPlayerContextProvider>
-  <Internals.RemotionEnvironmentContext.Provider value={env}>
-    <Internals.LogLevelContext.Provider value={logLevel}>
-      <Internals.CanUseRemotionHooksProvider>
-        <Internals.CompositionManager.Provider value={manager}>
-          <Internals.VideoProvider>
-            {frames.flatMap((frame,slot)=>regions.map((_,index)=><RegionView key={`${slot}/${index}`} slot={slot} regionIndex={index} frame={frame}/>))}
-          </Internals.VideoProvider>
-        </Internals.CompositionManager.Provider>
-      </Internals.CanUseRemotionHooksProvider>
-    </Internals.LogLevelContext.Provider>
-  </Internals.RemotionEnvironmentContext.Provider>
-</Internals.IsPlayerContextProvider>;
+const App=({frames}:{frames:number[]})=><>{frames.flatMap((frame,slot)=>regions.map((_,index)=><RegionView key={`${slot}/${index}`} slot={slot} regionIndex={index} frame={frame}/>))}</>;
 const root=createRoot(document.getElementById('app')!);
 const stats={draws:0,reactMs:0,replicationMs:0};
 (window as any).miniatorResetStats=()=>{stats.draws=0;stats.reactMs=0;stats.replicationMs=0;};
@@ -94,4 +75,4 @@ draw(Array(count).fill(0));
   const frames=Array.from({length:count},(_,i)=>Math.min(total-1,start+i));
   draw(frames);await Promise.resolve();return frames;
 };
-(window as any).remotionAtlasReady=async()=>{await document.fonts.ready;return true;};
+(window as any).miniatorAtlasReady=async()=>{await document.fonts.ready;return true;};

@@ -13,11 +13,4 @@ jobs:
       - run: npm run build
       - run: npm run check
       - run: npm test
-      - run: npm run doctor || true
-        # Patched Chromium is separately provisioned and not on CI machines.
-  rendering-smoke:
-    if: false # Enable only on a managed runner with the patched Chromium build.
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - run: npm ci && npm run build && npm run smoke
+      # Native CEF smoke requires a separately installed CEF SDK and Xvfb.

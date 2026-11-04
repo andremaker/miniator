@@ -1,5 +1,5 @@
 import React from 'react';
-import {AbsoluteFill, useCurrentFrame, useVideoConfig, spring, interpolate} from 'remotion';
+import {AbsoluteFill, useCurrentFrame, useVideoConfig, spring, interpolate} from './timeline';
 /** Locally authored corpus scene, NOT copied from a published benchmark. */
 export const Hello:React.FC=()=>{
  const frame=useCurrentFrame(); const {fps}=useVideoConfig();

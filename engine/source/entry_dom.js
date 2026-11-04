@@ -59,5 +59,5 @@
     for(let i=0;i<n;i++){const frame=Math.min(total-1,start+i);update(i,frame);frames.push(frame);}
     await Promise.resolve();return frames;
   };
-  window.remotionAtlasReady=async()=>{await document.fonts.ready;return true;};
+  window.miniatorAtlasReady=async()=>{await document.fonts.ready;return true;};
 })();

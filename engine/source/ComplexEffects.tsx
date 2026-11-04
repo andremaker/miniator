@@ -1,5 +1,5 @@
 import React from 'react';
-import {AbsoluteFill,useCurrentFrame,useVideoConfig,spring,interpolate} from 'remotion';
+import {AbsoluteFill,useCurrentFrame,useVideoConfig,spring,interpolate} from './timeline';
 // Compound visual-damage fixture: small moving layers, nested filters,
 // shadows, dynamically appearing children, translucent overlap, in-flow
 // pseudo-content, and frame-dependent text. Original React remains authoritative.

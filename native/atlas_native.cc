@@ -35,7 +35,7 @@ static napi_value closePool(napi_env env,napi_callback_info cb){
 }
 // Copy only the requested tile from Chromium's POSIX frame pool to a packed
 // BGRA buffer. Avoids reading the entire atlas through Node into JavaScript.
-// Copy happens before Page.remotionReleaseFrame, while the SHM pixels are valid.
+// Copy happens before Page.miniatorReleaseFrame, while the SHM pixels are valid.
 static napi_value extractTile(napi_env env,napi_callback_info cb){
  size_t argc=9;napi_value a[9];chk(env,napi_get_cb_info(env,cb,&argc,a,nullptr,nullptr));
  if(argc!=9){napi_throw_error(env,nullptr,"extractTile: expected 9 args");return nullptr;}

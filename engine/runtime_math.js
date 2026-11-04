@@ -3,7 +3,7 @@
 // No benchmark strings, coordinates or scene-specific selectors are hardcoded.
 const fs=require('fs');
 const ts=require('typescript');
-const {spring,interpolate}=require('remotion');
+const {spring,interpolate}=require('./timeline_math');
 
 function infer(sourceFile, comp) {
  const source=fs.readFileSync(sourceFile,'utf8');
@@ -11,11 +11,11 @@ function infer(sourceFile, comp) {
  const asText=n=>n.getText(ast);
  const fail=message=>{throw Error('Unsupported structural inference: '+message)};
  // A deliberately small supported language: no side effects, imports beyond
- // React/Remotion, network/media, custom components or opaque CSS expressions.
+ // React/Miniator, network/media, custom components or opaque CSS expressions.
  for(const st of ast.statements){
   if(ts.isImportDeclaration(st)){
    const imp=st.moduleSpecifier.text;
-   if(imp!=='react'&&imp!=='remotion')fail('unsupported dependency '+imp);
+   if(imp!=='react'&&imp!=='./timeline')fail('unsupported dependency '+imp);
   } else if(ts.isExpressionStatement(st))fail('top-level side effect');
  }
  const callsAllowed=new Set(['useCurrentFrame','useVideoConfig','spring','interpolate','Math.round','Math.floor','Math.ceil']);

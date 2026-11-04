@@ -3,33 +3,38 @@
 // No scene-specific positions, text, animation logic, ROI or background are
 // embedded here. Input composition and optimization plan are data files.
 const fs=require('fs'),path=require('path'),crypto=require('crypto'),os=require('os');
-const {spawn,execFileSync}=require('child_process');
+const {spawn}=require('child_process');
+const cef=require('../cef/transport');
 const {once}=require('events');
+const readline=require('node:readline');
 const {performance}=require('perf_hooks');
 const native=require('./atlas_native.node');
 const {infer: inferNumericScene} = require('./runtime_math');
 const {predictCandidates,sceneComplexity}=require('./atlas_capacity_planner');
 const {compileTemplateAtlas}=require('./predictive_atlas_plan');
-const ROOT=__dirname;
+const {planApprovedInput,resolveInputPrediction}=require('./optimization_policy');
+const ROOT=process.env.MINIATOR_WORKSPACE ? path.resolve(process.env.MINIATOR_WORKSPACE) : __dirname;
 const args=process.argv.slice(2);
 const opt=(s,d)=>{const i=args.indexOf(s);return i<0?d:args[i+1]};
 const has=s=>args.includes(s);
 const sha=x=>crypto.createHash('sha256').update(x).digest('hex');
 const read=x=>JSON.parse(fs.readFileSync(x,'utf8'));
 const n4=x=>Math.round(x*10000)/10000;
-const browser=process.env.MINIATOR_BROWSER||process.env.REMOTION_BROWSER;
-if(!browser)throw Error('Set MINIATOR_BROWSER to a compatible patched Chromium executable (requires POSIX shared-memory capture)');
 const fixturePath=opt('--fixture',path.join(ROOT,'scene_fixture.json'));
 const planPath=opt('--plan',path.join(ROOT,'compiled','renderplan.json'));
 const out=opt('--output',path.join(ROOT,'benchmarks'));
 const repetitions=Number(opt('--reps','5'));
-const tabCount=Number(opt('--tabs','1'));
-const slotCount=Number(opt('--slots','12'));
+const tabCount=Number(opt('--tabs','4'));
+const slotCount=Number(opt('--slots','8'));
 let atlasColumns=Number(opt('--atlas-columns',String(slotCount)));
 const padding=Number(opt('--padding','5'));
 const mode=opt('--mode','render');
-let pipelineMode=opt('--pipeline','off'); // off or on: overlap next Chromium capture with current FFmpeg writes
-if(!['off','on'].includes(pipelineMode))throw Error('Invalid --pipeline: on|off');
+const publicMode=['chosen','external','external-session'].includes(mode);
+const autoOptimizations=publicMode&&opt('--optimization-policy','auto')==='auto';
+// Production uses approved transport optimizations automatically. Experimental
+// benchmark modes keep their explicit controls and original defaults.
+let pipelineMode=opt('--pipeline',autoOptimizations?'auto':'on');
+if(!['off','on','auto'].includes(pipelineMode))throw Error('Invalid --pipeline: auto|on|off');
 const domMode=opt('--dom-mode','react'); // react or factor; factor re-evaluates live source per job
 if(!['react','factor','factorcss','direct','css','compiledjs','compiledcss','staticjs','staticcss'].includes(domMode))throw Error('Invalid --dom-mode');
 let visualCacheMode=opt('--visual-cache','off'); // off | build | on, keyed to immutable compiled inputs
@@ -40,7 +45,7 @@ const repeatPolicy=opt('--repetition','plan'); // plan or off; always allowed to
 const tabLifecycle=opt('--tab-lifecycle','reused'); // reused (default) or new
 if(!['reused','new'].includes(tabLifecycle))throw Error('Invalid --tab-lifecycle: reused|new');
 const tabCache=new Map();
-const predictiveAtlasEnabled=opt('--predictive-atlas','off')==='on';
+const predictiveAtlasEnabled=opt('--predictive-atlas',autoOptimizations?'on':'off')==='on';
 const predictiveTemplateCache=new Map();
 const runtimeProbeCache=new Map();
 let probeLifecycle=opt('--probe-lifecycle','new');
@@ -49,12 +54,15 @@ const visualAssetCache=new Map(); // Load and SHA-check a precompiled layer asse
 const fastViewport=opt('--fast-viewport','off')==='on';
 const backgroundPriority=opt('--background-priority','normal');
 const ffFilterThreads=Number(opt('--filter-threads','0'));
-const earlyEncoder=opt('--early-encoder','off')==='on';
-let filterBeforePad=opt('--filter-before-pad','off')==='on';
+const earlyEncoder=opt('--early-encoder',autoOptimizations?'on':'off')==='on';
+const beforePadOption=opt('--filter-before-pad',autoOptimizations?'auto':'off');
+if(!['auto','on','off'].includes(beforePadOption))throw Error('--filter-before-pad auto|on|off');
+let filterBeforePad=beforePadOption==='on';
 const copyCurrentSurface=opt('--copy-current-surface','off')==='on';
+const damageCrop=opt('--damage-crop','on');
+if(!['on','off'].includes(damageCrop))throw Error('--damage-crop must be on|off');
+if(copyCurrentSurface||fastViewport)throw Error('CEF backend does not implement current-surface or fast-viewport capture');
 const sharedMemUsage=opt('--shared-mem','tmp');
-const headlessArgs=['--no-sandbox','--headless=new','--disable-gpu',...(sharedMemUsage==='tmp'?['--disable-dev-shm-usage']:[]),'--remotion-shared-memory-capture','--no-first-run','--remote-debugging-port=0',
- ...(backgroundPriority==='high'?['--disable-background-timer-throttling','--disable-renderer-backgrounding','--disable-backgrounding-occluded-windows']:[])];
 if(!['normal','high'].includes(backgroundPriority)||!['tmp','shm'].includes(sharedMemUsage)||![0,1,2,4].includes(ffFilterThreads))throw Error('Invalid experimental flags');
 const source=fs.readFileSync(path.join(ROOT,'precompiled','entry_plan.js'),'utf8');
 const domSource=fs.readFileSync(path.join(ROOT,'source','entry_dom.js'),'utf8');
@@ -65,8 +73,33 @@ const packedSource=fs.existsSync(path.join(ROOT,'precompiled','entry_packed.js')
 const imperativeSource=fs.readFileSync(path.join(ROOT,'precompiled','entry_direct.js'),'utf8');
 const factorCssSource=fs.readFileSync(path.join(ROOT,'precompiled','entry_factor_css.js'),'utf8');
 const fixture=read(fixturePath);
+const externalInputs=opt('--input-json',null);
+let inputProps=externalInputs?read(externalInputs):{};
+if(inputProps===null||Array.isArray(inputProps)||typeof inputProps!=='object')throw Error('Input props must be a JSON object');
 const comp=fixture.composition;
-const expected=fixture.reference_mp4_sha256;
+function configureApprovedCapture(plan){
+ if(beforePadOption==='auto'){
+  const r=plan.capture;
+  filterBeforePad=plan.background?.mode==='solid'&&!plan.packedRegions&&
+   ['x','y','width','height'].every(k=>Number.isInteger(r[k])&&r[k]%2===0);
+ }
+}
+function selectedRepetition(selected){return selected.name.includes('tail')?null:'off';}
+const optimizationPolicy=opt('--optimization-policy','auto');
+if(!['auto','off'].includes(optimizationPolicy))throw Error('--optimization-policy auto|off');
+// Public paths share strategy selection. Benchmark modes may probe candidates explicitly.
+function planForInput(props){
+ const registryPath=opt('--strategy-registry',path.join(ROOT,'strategy_registry_general.json'));
+ const registry=fs.existsSync(registryPath)?read(registryPath):{choices:[]};
+ const sourceHash=fixture.source_sha256||sha(fs.readFileSync(path.join(ROOT,fixture.scene)));
+ // Compile-time predictions, when supplied, are applicability evidence, not QA
+ // allowlist entries. This lookup is input-dependent and does not read pixels.
+ const prediction=resolveInputPrediction({declarations:fixture.optimization_predictions,
+  sourceHash,props});
+ return planApprovedInput({composition:comp,sourceHash,props,registry,prediction,
+   staticAvailable:!!staticSource,tabs:tabCount,slots:slotCount,policy:optimizationPolicy});
+}
+const expected=/^[0-9a-f]{64}$/i.test(fixture.reference_mp4_sha256||'')?fixture.reference_mp4_sha256:null;
 const bundleManifest=read(path.join(ROOT,'bundle_manifest.json'));
 if(['runtime','runtime-infer','runtime-compare'].includes(mode))for(const [filename,digest] of Object.entries(bundleManifest.sources)){
  if(sha(fs.readFileSync(path.join(ROOT,filename)))!==digest)throw Error('Scene or bundle changed: rebuild the JS renderer before benchmarking '+filename);
@@ -79,7 +112,7 @@ sanityInt(comp.durationInFrames,'duration',1000000);sanityInt(comp.fps,'fps',240
 sanityInt(tabCount,'tabs',8);sanityInt(slotCount,'slots',32);sanityInt(atlasColumns,'atlas columns',32);
 if(!Number.isInteger(padding)||padding<0||padding>32)throw Error('Invalid padding');
 if(!['plan','off'].includes(repeatPolicy))throw Error('Unknown repetition policy');
-const browserVersion=execFileSync(browser,['--version'],{encoding:'utf8'}).trim();
+const browserVersion='CEF native bridge';
 function fingerprints(){return {
   scene_sha256:sha(fs.readFileSync(path.join(ROOT,fixture.scene))),
   fixture_sha256:sha(fs.readFileSync(fixturePath)),
@@ -89,7 +122,7 @@ function fingerprints(){return {
   factor_renderer_sha256:sha(factorSource),
   engine_sha256:sha(fs.readFileSync(__filename)),
   native_addon_sha256:sha(fs.readFileSync(path.join(ROOT,'atlas_native.node'))),
-  browser_version:browserVersion,
+  cef_version:browserVersion,
   composition_sha256:sha(JSON.stringify(comp)),
   encoder_sha256:sha(JSON.stringify(fixture.encoder)),
 };}
@@ -108,19 +141,12 @@ class CDP {
 }
 async function evaluate(cdp,sid,expression){const r=await cdp.send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true},sid);
  if(r.exceptionDetails)throw Error('Browser evaluation error '+JSON.stringify(r.exceptionDetails));return r.result?.value;}
-async function launch(){const proc=spawn(browser,[...headlessArgs,'--user-data-dir='+tmp],{stdio:['ignore','ignore','pipe']});
- let stderr='';proc.stderr.on('data',v=>{stderr=(stderr+v.toString()).slice(-20000)});
- let url;for(let i=0;i<160;i++){url=stderr.match(/DevTools listening on (ws:\/\/[^\s]+)/)?.[1];if(url)break;
-  if(proc.exitCode!==null)throw Error('Chromium exit '+proc.exitCode+' '+stderr);await sleep(50);}
- if(!url)throw Error('Chromium failed to start '+stderr);
- const ws=new WebSocket(url);await new Promise((resolve,reject)=>{ws.addEventListener('open',resolve,{once:true});ws.addEventListener('error',reject,{once:true})});
- return {proc,ws,cdp:new CDP(ws)};}
-async function stop(b){if(b){try{await b.cdp.send('Browser.close')}catch{}try{b.ws.close()}catch{}if(b.proc.exitCode===null)b.proc.kill();}
- try{fs.rmSync(tmp,{recursive:true,force:true})}catch{}}
+async function launch(){return cef.launch();}
+async function stop(b){await cef.stop(b);try{fs.rmSync(tmp,{recursive:true,force:true})}catch{}}
 function bgCss(bgra){const x=bgra>>>0;const b=x&255,g=(x>>>8)&255,r=(x>>>16)&255,a=x>>>24;
  if(a!==255)throw Error('Only opaque constant backgrounds are supported');
  return [r,g,b].map(z=>z.toString(16).padStart(2,'0')).join('');}
-function makeConfig(capture,slots,columns=slots,regions=null){return {composition:comp,capture,execution:{slots,columns,...(regions?{allowExperimentalPacking:true,containment:'clip-paint',copyMode:'react'}:{})},...(regions?{regions}:{})};}
+function makeConfig(capture,slots,columns=slots,regions=null){return {composition:comp,capture,inputProps,execution:{slots,columns,...(regions?{allowExperimentalPacking:true,containment:'clip-paint',copyMode:'react'}:{})},...(regions?{regions}:{})};}
 function planDigest(plan){return sha(JSON.stringify({version:plan.version,fingerprints:plan.fingerprints,composition:plan.composition,background:plan.background,capture:plan.capture,domReplay:plan.domReplay,optimizations:plan.optimizations,execution:plan.execution,expected_mp4_sha256:plan.expected_mp4_sha256}));}
 function verifiedPlan(plan){if(!plan.plan_digest||plan.plan_digest!==planDigest(plan))throw Error('Compiled plan metadata was modified after validation; recompile');
  if(plan.version!==2||!plan.validated||plan.expected_mp4_sha256!==expected)throw Error('Plan not verified');
@@ -147,12 +173,13 @@ function verifiedPlan(plan){if(!plan.plan_digest||plan.plan_digest!==planDigest(
  return plan;}
 async function tabOpen(cdp,capture,slots,bg,domSnapshots=null,bundleMode='react',columns=slots,regions=null){const t0=performance.now(),aw=capture.width*columns,ah=capture.height*Math.ceil(slots/columns);
  sanityInt(aw,'atlas width',32768);sanityInt(ah,'atlas height',8192);
- const {targetId}=await cdp.send('Target.createTarget',{url:'about:blank',width:aw,height:ah});
+ const surfaceWidth=aw+1; // reserve the rightmost column for a per-capture paint marker
+ const {targetId}=await cdp.send('Target.createTarget',{url:'about:blank',width:surfaceWidth,height:ah});
  const {sessionId}=await cdp.send('Target.attachToTarget',{targetId,flatten:true});
  await cdp.send('Page.enable',{},sessionId);await cdp.send('Runtime.enable',{},sessionId);
- await cdp.send('Emulation.setDeviceMetricsOverride',{width:aw,height:ah,deviceScaleFactor:1,mobile:false},sessionId);
+ await cdp.send('Emulation.setDeviceMetricsOverride',{width:surfaceWidth,height:ah,deviceScaleFactor:1,mobile:false},sessionId);
  const tree=await cdp.send('Page.getFrameTree',{},sessionId);
- const html=`<!doctype html><html><head><meta charset="utf-8"><style>*,*::before,*::after{box-sizing:border-box}html,body{padding:0;margin:0;overflow:hidden;background:#${bg}}#app{position:absolute;left:0;top:0}</style></head><body><div id="app"></div></body></html>`;
+ const html=`<!doctype html><html><head><meta charset="utf-8"><style>*,*::before,*::after{box-sizing:border-box}html,body{padding:0;margin:0;overflow:hidden;background:#${bg}}#app{position:absolute;left:0;top:0}</style></head><body><div id="app"></div><div id="miniator-capture-marker" style="position:fixed;right:0;bottom:0;width:1px;height:1px;z-index:2147483647;pointer-events:none"></div></body></html>`;
  await cdp.send('Page.setDocumentContent',{frameId:tree.frameTree.frame.id,html},sessionId);
  const conf=makeConfig(capture,slots,columns,regions);
  if(domSnapshots)conf.domSnapshots=domSnapshots;
@@ -165,12 +192,12 @@ async function tabOpen(cdp,capture,slots,bg,domSnapshots=null,bundleMode='react'
    await evaluate(cdp,sessionId,`window.__MINIATOR_UPDATE_METHOD__=${JSON.stringify(bundleMode)}`);
    await evaluate(cdp,sessionId,imperativeSource+'\n//# sourceURL=miniator_imperative.js');
  }
- await evaluate(cdp,sessionId,'window.remotionAtlasReady()');
- const framePool=await cdp.send('Page.remotionCreateFramePool',{slotCount:2,slotCapacity:aw*ah*4+64,preferredBackend:'posix-shm'},sessionId);
- if(framePool.backend!=='posix-shm')throw Error('Patched Chromium POSIX shared memory unavailable');
+ await evaluate(cdp,sessionId,'window.miniatorAtlasReady()');
+ const framePool=await cdp.send('Page.miniatorCreateFramePool',{slotCount:2,slotCapacity:surfaceWidth*ah*4+64,preferredBackend:'posix-shm'},sessionId);
+ if(framePool.backend!=='posix-shm')throw Error('CEF POSIX shared memory unavailable');
  const shm=native.openPool(framePool.sharedMemoryName,framePool.slotCapacity,framePool.slotCount);
- return {targetId,sessionId,shm,width:aw,height:ah,columns,setup_s:(performance.now()-t0)/1000};}
-async function tabClose(cdp,t){try{await cdp.send('Page.remotionDestroyFramePool',{},t.sessionId)}catch{}
+ return {targetId,sessionId,shm,width:surfaceWidth,height:ah,captureNonce:0,columns,setup_s:(performance.now()-t0)/1000};}
+async function tabClose(cdp,t){try{await cdp.send('Page.miniatorDestroyFramePool',{},t.sessionId)}catch{}
  try{native.closePool(t.shm)}catch{}try{await cdp.send('Target.closeTarget',{targetId:t.targetId})}catch{}}
 async function capture(cdp,tab,captureCfg,start,slots,round,callback){
  const total=comp.durationInFrames;
@@ -178,10 +205,14 @@ async function capture(cdp,tab,captureCfg,start,slots,round,callback){
  const target=Array.from({length:slots},(_,i)=>Math.min(start+i,total-1));
  if(JSON.stringify(frames)!==JSON.stringify(target))throw Error('Timeline order failure');
  const id='plan-'+tab.targetId+'-'+round;
- const captureParams={remotionFrameSlot:0,remotionFrameId:id,format:'png',fromSurface:true,captureBeyondViewport:fastViewport, ...(fastViewport?{remotionFastViewport:true,optimizeForSpeed:true,clip:{x:0,y:0,width:tab.width,height:tab.height,scale:1}}:{}), ...(copyCurrentSurface?{remotionCopyCurrentSurface:true}:{})};
+ const nonce=++tab.captureNonce;
+ if(nonce>=0x1000000)throw Error('CEF marker sequence exhausted: recreate tab');
+ const marker='#'+[nonce&255,(nonce>>>8)&255,(nonce>>>16)&255].map(n=>n.toString(16).padStart(2,'0')).join('');
+ await evaluate(cdp,tab.sessionId,`document.getElementById('miniator-capture-marker').style.backgroundColor=${JSON.stringify(marker)}`);
+ const captureParams={miniatorFrameSlot:0,miniatorFrameId:id,miniatorExpectedMarker:nonce};
  const result=await cdp.send('Page.captureScreenshot',captureParams,tab.sessionId);
- if(!result.remotionFrame||result.remotionFrame.stride!==tab.width*4)throw Error('Invalid raw shared-memory capture');
- try{return await callback(result.remotionFrame)}finally{await cdp.send('Page.remotionReleaseFrame',{slot:0,frameId:id},tab.sessionId);}
+ if(!result.miniatorFrame||result.miniatorFrame.stride!==tab.width*4)throw Error('Invalid raw shared-memory capture');
+ try{return await callback(result.miniatorFrame)}finally{await cdp.send('Page.miniatorReleaseFrame',{slot:0,frameId:id},tab.sessionId);}
 }
 // Precompilation only. Determine which horizontal pixel bands stop changing
 // while the rest of the scene continues. No video frames are stored in the plan.
@@ -276,8 +307,8 @@ async function compile(cdp){const started=performance.now();
  console.log('ANALYSIS',JSON.stringify({capture:plan.capture,background:plan.background,repetition:repeatInstruction,analysis_s:n4((performance.now()-started)/1000)}));
  const validationPath=path.join(out,'compiled_validation.mp4');
  let validation=await render(cdp,plan,validationPath,1,slotCount,null,null);
- if(!validation.correct && plan.background.mode==='solid'){
-  // A conservative fall back: no ROI optimization if Chromium composition
+ if(validation.correct===false && plan.background.mode==='solid'){
+  // A conservative fall back: no ROI optimization if CEF composition
   // differs at even one encoded output byte.
   console.log('ROI_REJECTED',validation.hash);
   plan.capture=full;plan.background={mode:'none'};plan.optimizations.roi=false;
@@ -288,7 +319,7 @@ async function compile(cdp){const started=performance.now();
   const trialPath=path.join(out,'layer_reuse_validation.mp4');
   const trial=await render(cdp,plan,trialPath,1,slotCount,null,null,'react','plan');
   plan.analysis.layer_reuse_proof={correct:trial.correct,seconds:trial.total_s,hash:trial.hash};
-  if(!trial.correct){plan.optimizations.layerReuse=false;console.log('LAYER_REJECTED',trial.hash);}else console.log('LAYER_VALIDATED',JSON.stringify(band));
+  if(trial.correct===false){plan.optimizations.layerReuse=false;console.log('LAYER_REJECTED',trial.hash);}else console.log('LAYER_VALIDATED',JSON.stringify(band));
   if(!has('--keep-mp4'))fs.rmSync(trialPath,{force:true});
  }
  if(validation.correct&&!has('--skip-factor-validation')){
@@ -312,7 +343,7 @@ async function compile(cdp){const started=performance.now();
  }
  plan.compilation={analyze_s:n4((performance.now()-started)/1000-validation.total_s),validation_s:validation.total_s,
   total_s:n4((performance.now()-started)/1000)};
- if(!validation.correct)throw Error('Plan failed exact MP4 checksum '+validation.hash+' expected '+expected);
+ if(validation.correct===false)throw Error('Plan failed exact MP4 checksum '+validation.hash+' expected '+expected);
  plan.validated=true;plan.plan_digest=planDigest(plan);fs.mkdirSync(path.dirname(planPath),{recursive:true});fs.writeFileSync(planPath,JSON.stringify(plan,null,2));
  if(!has('--keep-mp4'))fs.rmSync(validationPath,{force:true});
  console.log('PLAN_SAVED',planPath,JSON.stringify({capture:plan.capture,compilation:plan.compilation,hash:validation.hash}));
@@ -425,6 +456,7 @@ async function inferRuntimePlan(cdp){
 async function sendRaw(ff,buf){if(!ff.stdin.write(buf))await once(ff.stdin,'drain')}
 async function render(cdp,plan,file,tabs,slots,overrideRepetition=null,cache=tabLifecycle==='reused'?tabCache:null,overrideDomMode=null,overrideLayerMode=null){const started=performance.now();const regions=plan.packedRegions||null;const logicalCapture=plan.capture;const captureCfg=regions?{x:0,y:0,width:regions.reduce((v,r)=>v+r.width,0),height:Math.max(...regions.map(r=>r.height))}:logicalCapture;
  const repetition=overrideRepetition==='off'||(overrideRepetition===null&&repeatPolicy==='off')?false:plan.optimizations?.frameRepetition;
+ const activePipeline=pipelineMode==='auto'?(repetition?repetition.start+1:comp.durationInFrames)>tabs*slots?'on':'off':pipelineMode;
  const effectiveFrames=repetition?repetition.start+1:comp.durationInFrames;
  const isCropped=plan.background.mode==='solid';
  if(regions){if(!Array.isArray(regions)||regions.length<2||regions.length>4||!isCropped)throw Error('Packed regions require 2-4 regions and opaque solid background');
@@ -446,7 +478,7 @@ async function render(cdp,plan,file,tabs,slots,overrideRepetition=null,cache=tab
  const band=activeLayerMode==='plan'?plan.optimizations?.layerReuse:false;
  if(activeLayerMode==='plan'&&!band)throw Error('Layer reuse was not validated in this plan');
  // Cached pages preserve their loaded React trees, frame pools and mapped SHM across jobs.
- // The cache key excludes repetition: it only affects FFmpeg, never Chromium state.
+ // The cache key excludes repetition: it only affects FFmpeg, never CEF state.
  // Rendering plans and scene bundles are fixed/verified for this process.
  const columns=Math.min(atlasColumns,slots);
  if(columns!==slots&&(band||visual))throw Error('Grid atlas not yet compatible with layer/video cache; choose strip layout');
@@ -484,7 +516,7 @@ async function render(cdp,plan,file,tabs,slots,overrideRepetition=null,cache=tab
   if(band||visual)throw Error('Predictive atlas not yet compatible with layer/visual caching');
   const tPredict=performance.now();
   const sceneHash=sha(fs.readFileSync(path.join(ROOT,fixture.scene)));
-  const signature=JSON.stringify([sceneHash,comp,captureCfg,regions,tabs,slots,effectiveFrames,activeDomMode]);
+  const signature=JSON.stringify([sceneHash,sha(JSON.stringify(inputProps)),comp,captureCfg,regions,tabs,slots,effectiveFrames,activeDomMode]);
   let saved=predictiveTemplateCache.get(signature);
   if(!saved){
    const rects=regions||[captureCfg];
@@ -516,7 +548,7 @@ async function render(cdp,plan,file,tabs,slots,overrideRepetition=null,cache=tab
  const pool=await poolPromise;
  if(cache&&!existing)cache.set(key,pool);
  const reused_tabs=!!existing;
- // A reusable Chromium tab may still have a reduced viewport from its previous job.
+ // A reusable CEF tab may still have a reduced viewport from its previous job.
  for(const tab of pool)if(tab.layerActive&&!visual){
   await cdp.send('Emulation.setDeviceMetricsOverride',{width:tab.width,height:captureCfg.height,deviceScaleFactor:1,mobile:false},tab.sessionId);
   await evaluate(cdp,tab.sessionId,"document.getElementById('app').style.top='0px'");
@@ -526,7 +558,7 @@ async function render(cdp,plan,file,tabs,slots,overrideRepetition=null,cache=tab
  const {ff,stderr:stderrFn}=earlyFF||createEncoder();
  let writes=0,waitS=0,captureS=0;const framesPerGroup=tabs*slots;
  let cachedTop=null,layerFrames=0,layerEnabled=false;
- // Keep only the per-frame changing lower region in Chromium. Reconstruct the upper band from an input-keyed asset.
+ // Keep only the per-frame changing lower region in CEF. Reconstruct the upper band from an input-keyed asset.
  if(visual){await Promise.all(pool.filter(tab=>!tab.visualActive).map(async tab=>{
   await evaluate(cdp,tab.sessionId,`document.getElementById('app').style.top='-${visual.splitY}px'`);
   await cdp.send('Emulation.setDeviceMetricsOverride',{width:tab.width,height:captureCfg.height-visual.splitY,deviceScaleFactor:1,mobile:false},tab.sessionId);
@@ -565,7 +597,7 @@ async function render(cdp,plan,file,tabs,slots,overrideRepetition=null,cache=tab
      cachedTop=Buffer.from(next.bufs[j].subarray(0,band.splitY*captureCfg.width*4));break;
     }
    }
-   if(pipelineMode==='on'&&batch+1<rounds.length)pending=makeCaptureBatch((batch+1)*framesPerGroup,batch+1,rounds[batch+1]);
+   if(activePipeline==='on'&&batch+1<rounds.length)pending=makeCaptureBatch((batch+1)*framesPerGroup,batch+1,rounds[batch+1]);
    for(const next of current){if(!next)continue;
     for(let j=0;j<next.bufs.length;j++){let buf=next.bufs[j];
      if(next.short){const merged=Buffer.allocUnsafe(captureCfg.width*captureCfg.height*4);
@@ -575,7 +607,7 @@ async function render(cdp,plan,file,tabs,slots,overrideRepetition=null,cache=tab
      const t0=performance.now();await sendRaw(ff,buf);waitS+=(performance.now()-t0)/1000;writes++;
     }
    }
-   if(pipelineMode==='off'&&batch+1<rounds.length)pending=makeCaptureBatch((batch+1)*framesPerGroup,batch+1,rounds[batch+1]);
+   if(activePipeline==='off'&&batch+1<rounds.length)pending=makeCaptureBatch((batch+1)*framesPerGroup,batch+1,rounds[batch+1]);
   }
   if(writes!==effectiveFrames)throw Error('Missing source frames '+writes+'/'+effectiveFrames);
   ff.stdin.end();const code=await new Promise((resolve,reject)=>{ff.once('close',resolve);ff.once('error',reject)});
@@ -584,7 +616,7 @@ async function render(cdp,plan,file,tabs,slots,overrideRepetition=null,cache=tab
   const hash=sha(fs.readFileSync(file));
   return {packed_regions:regions,encoding_strategy:regions?'packed-yuv-overlay':isCropped?'compact-roi':'full-bgra',total_s:n4(total_s),setup_s:n4(setup_s),render_encode_s:n4(total_s-setup_s),write_wait_s:n4(waitS),
     capture_time_sum_s:n4(captureS),tabs,slots,columns,predictive_plan_ms:n4(predictedPlanMs),predictive_origin:predictedPlanOrigin,atlas_rounds:predictedRounds?.length??null,atlas_batch_sizes:predictedRounds?.flat().map(x=>x.count)??null,source_frames_written:writes,output_frames:comp.durationInFrames,
-    repetition_applied:!!repetition,tabs_setup:existing?0:tabs,reused_tabs,tab_lifecycle:cache?'reused':'new',dom_mode:activeDomMode,layer_mode:activeLayerMode,layer_frames:layerFrames,visual_cache:!!visual,pipeline:pipelineMode,hash,correct:hash===expected};
+    repetition_applied:!!repetition,tabs_setup:existing?0:tabs,reused_tabs,tab_lifecycle:cache?'reused':'new',dom_mode:activeDomMode,layer_mode:activeLayerMode,layer_frames:layerFrames,visual_cache:!!visual,pipeline:activePipeline,hash,correct:expected?hash===expected:null,reference_checked:!!expected};
  }finally{
    if(ff.exitCode===null)ff.kill('SIGKILL');
    if(!cache)await Promise.all(pool.map(t=>tabClose(cdp,t)));
@@ -592,7 +624,7 @@ async function render(cdp,plan,file,tabs,slots,overrideRepetition=null,cache=tab
 }
 function activePackedDisallowed(plan){return !!(plan.domReplay?.enabled||plan.optimizations?.layerReuse||plan.optimizations?.visualCache)}
 async function main(){fs.mkdirSync(out,{recursive:true});let b;
- const existingPlan=(mode==='compile'||mode==='runtime'||mode==='runtime-infer'||mode==='runtime-compare'||mode==='compiler-matrix'||mode==='planner-matrix'||mode==='chosen')?null:verifiedPlan(read(planPath));
+ const existingPlan=(mode==='compile'||mode==='runtime'||mode==='runtime-infer'||mode==='runtime-compare'||mode==='compiler-matrix'||mode==='planner-matrix'||mode==='chosen'||mode==='external'||mode==='external-session')?null:verifiedPlan(read(planPath));
  try{b=await launch();
   let plan=mode==='compile'?await compile(b.cdp):mode==='runtime'?{version:2,composition:comp,capture:{x:0,y:0,width:comp.width,height:comp.height},background:{mode:'none'},domReplay:{enabled:false},optimizations:{staticDOMSharing:false,frameRepetition:false,elementReuse:false,layerReuse:false,visualCache:false},validated:false}:existingPlan;
   if(mode==='runtime-compare'){
@@ -610,7 +642,7 @@ async function main(){fs.mkdirSync(out,{recursive:true});let b;
     const tabs=useROI&&a.safe?tabCount:4,slots=useROI&&a.safe?slotCount:3;
     const r=await render(b.cdp,plan,file,tabs,slots,'off',reuse?tabCache:null,'react','off');
     const total=n4((performance.now()-st)/1000);
-    if(!r.correct)throw Error('Output mismatch '+variant+' '+r.hash);
+    if(r.correct===false)throw Error('Output mismatch '+variant+' '+r.hash);
     if(!has('--keep-mp4'))fs.rmSync(file,{force:true});
     return {variant,index,end_to_end_s:total,analysis_s:a.analysis_s,analysis_timings:a.timings,analysis_safe:a.safe,
       fallback_reason:a.reason||null,capture:plan.capture,...r};
@@ -647,7 +679,7 @@ async function main(){fs.mkdirSync(out,{recursive:true});let b;
      const output=path.join(out,`runtime_inferred_${index}.mp4`);
      const result=await render(b.cdp,plan,output,tabs,slots,'off',tabLifecycle==='reused'?tabCache:null,'react','off');
      const total=n4((performance.now()-st)/1000);
-     if(!result.correct)throw Error('Runtime inference output not exact: '+result.hash+' region '+JSON.stringify(plan.capture));
+     if(result.correct===false)throw Error('Runtime inference output not exact: '+result.hash+' region '+JSON.stringify(plan.capture));
      if(!has('--keep-mp4'))fs.rmSync(output,{force:true});
      return {rep:index,analysis_s:analysis.analysis_s,analysis_timings:analysis.timings,
        render_s:result.total_s,end_to_end_s:total,roi_safe:analysis.safe,
@@ -762,29 +794,27 @@ async function main(){fs.mkdirSync(out,{recursive:true});let b;
    return;
   }
   if(mode==='chosen'){
-   const registry=read(opt('--strategy-registry',path.join(ROOT,'strategy_registry_general.json')));
-   const srcHash=sha(fs.readFileSync(path.join(ROOT,fixture.scene)));
+   const srcHash=fixture.source_sha256||sha(fs.readFileSync(path.join(ROOT,fixture.scene)));
    const propsFile=opt('--input-json',null);
    const inputs=propsFile?read(propsFile):{};
    if(Object.keys(inputs).length)throw Error('This legacy source runner does not support dynamic props; use parameterized build');
    const inputHash=sha(JSON.stringify(inputs));
-   const entries=registry.choices||[];
-   const record=entries.find(v=>v.source_sha256===srcHash&&v.params_sha256===inputHash&&JSON.stringify(v.composition)===JSON.stringify(comp));
-   const fallback={version:2,composition:comp,capture:{x:0,y:0,width:comp.width,height:comp.height},background:{mode:'none'},domReplay:{enabled:false},optimizations:{frameRepetition:false,layerReuse:false,visualCache:false},validated:false};
-   let selected={name:'full-react',tabs:tabCount,slots:slotCount,dom:'react',capture:null};let job=fallback;
-   if(record&&record.qa_passed===true){
-    const pick=record.strategy;
-    const optz={...fallback.optimizations};
-    if(pick==='tail-repetition'&&record.repeat){optz.frameRepetition=record.repeat;job={...fallback,optimizations:optz};}
-    else if(pick==='full-static'&&staticSource){job=fallback;}
-    else if((pick==='single-roi'||pick==='packed-regions')&&record.background){
-      job={...fallback,background:{mode:'solid',color:record.background},
-       ...(pick==='single-roi'?{capture:record.single}:{}),
-       ...(pick==='packed-regions'?{packedRegions:record.regions}:{}),
-      };
-    }
-    if(['tail-repetition','full-static','single-roi','packed-regions','full-react'].includes(pick))selected={name:pick,tabs:record.tabs,slots:record.slots,dom:pick==='full-static'?'staticjs':'react'};
+   const decision=planForInput(inputs);
+   const record=decision.record;
+   let selected=decision.selected,job=decision.plan;
+   // Source-based ROI inference does not require an historical QA record.
+   // Keep full-frame fallback for sources unsupported by the predictor.
+   if(damageCrop==='off'){
+    selected={name:'full-react',tabs:tabCount,slots:slotCount,dom:'react'};
+    job={version:2,composition:comp,capture:{x:0,y:0,width:comp.width,height:comp.height},background:{mode:'none'},domReplay:{enabled:false},optimizations:{frameRepetition:false,layerReuse:false,visualCache:false},validated:false};
+   }else if(selected.name==='full-react'&&!record){
+    const inferred=await inferRuntimePlan(b.cdp);
+    if(inferred.safe){job=inferred.plan;selected={...selected,name:'inferred-roi'};
+     console.log('CEF_PREDICTED_ROI',JSON.stringify({capture:job.capture,analysis_s:inferred.analysis_s}));
+    }else console.log('CEF_ROI_FALLBACK',JSON.stringify({reason:inferred.reason||'unsupported source'}));
    }
+   configureApprovedCapture(job);
+   console.log('MINIATOR_PLAN',JSON.stringify({mode,selection:selected.name,reason:decision.reason}));
    // An independently validated trailing-frame instruction can be combined with ROI.
    // Gate combined outputs against the existing source reference before promotion.
    if(opt('--combine-tail','off')==='on' && record?.qa_passed===true && record.repeat &&
@@ -804,9 +834,14 @@ async function main(){fs.mkdirSync(out,{recursive:true});let b;
     // Predict solely from source, permitted region bounds and host budget, never from captured pixels.
     const pick=predicted.candidates[0];
     predictedChoice=pick;
-    if(!pick)throw Error('No safe predictive atlas candidates under memory budget');
-    selected={...selected,tabs:pick.tabs,slots:pick.slots,allocation:'source-predicted',predicted_score:pick.predictedScore};
-    console.log('PREDICTED_ALLOCATION',JSON.stringify({selection:selected,physical:predicted.physical,complexity:predicted.complexity,host:predicted.host,proposals:predicted.candidates}));
+    // A predicted capacity is not a measured optimum. In particular, the
+    // heuristic's 1-tab/32-slot choice can regress a proven 4-tab/8-slot
+    // packed-region configuration. Keep the measured configuration unless an
+    // explicit experiment requests predictor-based concurrency selection.
+    if(!pick)console.warn('No predictive allocation candidate; using measured slot configuration');
+    else if(has('--experimental-predictive-concurrency'))
+     selected={...selected,tabs:pick.tabs,slots:pick.slots,allocation:'experimental-predicted',predicted_score:pick.predictedScore};
+    console.log('PREDICTED_ALLOCATION',JSON.stringify({selection:selected,candidate:pick,physical:predicted.physical,complexity:predicted.complexity,host:predicted.host}));
    }
    // Optional current-host calibration. This is previously validated timing metadata
    // keyed to source, input, composition and strategy, never pixels from this render.
@@ -848,6 +883,66 @@ async function main(){fs.mkdirSync(out,{recursive:true});let b;
    console.log('CHOSEN',JSON.stringify({selected,registry_match:!!record,median_s:median}));
    return;
   }
+  if(mode==='external-session'){
+   // The browser, atlas tabs, native SHM and compiled React roots are kept
+   // alive across jobs. Props are applied before any frame is captured.
+   // No pixel reads and no DOM geometry probes are required for this update.
+   const tabs=tabCount,slots=slotCount;
+   console.log('MINIATOR_SESSION '+JSON.stringify({event:'ready',tabs,slots,parameterized:true}));
+   const input=readline.createInterface({input:process.stdin,crlfDelay:Infinity});
+   for await(const line of input){let request,id;
+    try{
+     request=JSON.parse(line);id=request.id;
+     if(request.action==='close'){
+      console.log('MINIATOR_SESSION '+JSON.stringify({id,ok:true,closed:true}));break;
+     }
+     if(request.action!=='render'||typeof request.output!=='string'||!request.output)throw Error('Expected render with output path');
+     const next=request.props===undefined?{}:request.props;
+     if(next===null||typeof next!=='object'||Array.isArray(next))throw Error('Expected JSON props object');
+     const serialized=JSON.stringify(next);
+     if(serialized===undefined)throw Error('Props must be JSON serializable');
+     const changed=serialized!==JSON.stringify(inputProps);
+     if(changed){
+      // Change every live tab, including all slots, before the next render.
+      // Existing React roots are reconciled in place; frame updates stay in
+      // drawBatch() and keep all native extraction/encoding optimizations.
+      await Promise.all([...tabCache.values()].flat().map(t=>evaluate(b.cdp,t.sessionId,
+       'window.__MINIATOR_SET_INPUT_PROPS__('+serialized+')')));
+      inputProps=next;
+     }
+     const file=path.resolve(request.output);fs.mkdirSync(path.dirname(file),{recursive:true});
+     const decision=planForInput(inputProps);
+     const selected=decision.selected;
+     atlasColumns=selected.slots;
+     configureApprovedCapture(decision.plan);
+     console.log('MINIATOR_PLAN',JSON.stringify({mode,selection:selected.name,reason:decision.reason}));
+     const result=await render(b.cdp,decision.plan,file,selected.tabs,selected.slots,
+       selectedRepetition(selected),tabCache,selected.dom,'off');
+     const {correct:unusedReferenceMatch,...measured}=result;
+     console.log('MINIATOR_SESSION '+JSON.stringify({id,ok:true,result:{...measured,video:file,
+      input_sha256:sha(serialized),props_updated:changed,reference_verified:false}}));
+    }catch(e){console.log('MINIATOR_SESSION '+JSON.stringify({id:id??null,ok:false,error:e.message}));}
+   }
+   return;
+  }
+  if(mode==='external'){
+   // Conservative unvalidated user compositions: no inferred ROI/repetition/cache.
+   // Keep the existing native shared-memory capture and multi-tab atlas pipeline.
+   const decision=planForInput(inputProps);
+   const selected=decision.selected;
+   atlasColumns=selected.slots;
+   configureApprovedCapture(decision.plan);
+   console.log('MINIATOR_PLAN',JSON.stringify({mode,selection:selected.name,reason:decision.reason}));
+   const video=path.resolve(opt('--video',path.join(out,'render.mp4')));
+   fs.mkdirSync(path.dirname(video),{recursive:true});
+   const result=await render(b.cdp,decision.plan,video,selected.tabs,selected.slots,
+     selectedRepetition(selected),tabCache,selected.dom,'off');
+   const {correct:unusedReferenceMatch,...measured}=result;
+   const report={mode:'external',video,composition:comp,source_sha256:sha(fs.readFileSync(path.join(ROOT,fixture.scene))),
+     input_sha256:sha(JSON.stringify(inputProps)),reference_verified:false,...measured};
+   fs.writeFileSync(path.join(out,'render_summary.json'),JSON.stringify(report,null,2));
+   console.log('EXTERNAL_RENDER',JSON.stringify(report));return;
+  }
   if(mode==='compile')return;
   // A true no-RenderPlan path, suitable for single-use/unpredictable scenes.
   // Browser process is kept warm, each measured job creates fresh pages.
@@ -858,18 +953,18 @@ async function main(){fs.mkdirSync(out,{recursive:true});let b;
     if(visualCacheMode!=='off'||layerReuse!=='off'||!['react','factor','factorcss','compiledjs','compiledcss','staticjs','staticcss'].includes(domMode))throw Error('No precompiled assets/scene-dependent strategies in runtime mode');
    }
    const f=path.join(out,'warmup_runtime.mp4');const warm=await render(b.cdp,plan,f,tabCount,slotCount,'off',null,domMode,'off');
-   if(!warm.correct&&!has('--allow-inexact-benchmark'))throw Error('Runtime warm-up hash mismatch');if(!has('--keep-mp4'))fs.rmSync(f,{force:true});
+   if(warm.correct===false&&!has('--allow-inexact-benchmark'))throw Error('Runtime warm-up hash mismatch');if(!has('--keep-mp4'))fs.rmSync(f,{force:true});
    console.log('RUNTIME_WARMUP',warm.total_s);
    const rows=[];for(let j=0;j<repetitions;j++){
     const file=path.join(out,`runtime_${j}.mp4`);
     const r=await render(b.cdp,plan,file,tabCount,slotCount,'off',null,domMode,'off');
-    if(!r.correct&&!has('--allow-inexact-benchmark'))throw Error('Runtime hash mismatch '+r.hash);
+    if(r.correct===false&&!has('--allow-inexact-benchmark'))throw Error('Runtime hash mismatch '+r.hash);
     rows.push({rep:j,...r});console.log('RUNTIME_RUN',j,r.total_s,r.hash);
     fs.writeFileSync(path.join(out,'runs.json'),JSON.stringify(rows,null,2));
     if(!has('--keep-mp4'))fs.rmSync(file,{force:true});
    }
    const times=rows.map(x=>x.total_s).sort((a,b)=>a-b);
-   const summary={mode:'runtime_without_any_precompiled_plan',chromium:browserVersion,scene_sha256:sha(fs.readFileSync(path.join(ROOT,fixture.scene))),
+   const summary={mode:'runtime_without_any_precompiled_plan',cef:browserVersion,scene_sha256:sha(fs.readFileSync(path.join(ROOT,fixture.scene))),
     tabs:tabCount,slots:slotCount,columns:atlasColumns,pipeline:pipelineMode,reference:expected,allow_inexact:has('--allow-inexact-benchmark'),exact_runs:rows.filter(r=>r.correct).length,all_s:times,median_s:times[Math.floor(times.length/2)],runs:rows};
    fs.writeFileSync(path.join(out,'summary.json'),JSON.stringify(summary,null,2));console.log('RUNTIME_SUMMARY',JSON.stringify({median_s:summary.median_s,all_s:times}));return;
   }
@@ -980,18 +1075,18 @@ async function main(){fs.mkdirSync(out,{recursive:true});let b;
    try{
     const rows=[];
     for(const v of variants){let f=path.join(out,`warmup_${v}.mp4`);
-     const r=await run(v,f);if(!r.correct)throw Error('Warmup failed '+v+' '+r.hash);
+     const r=await run(v,f);if(r.correct===false)throw Error('Warmup failed '+v+' '+r.hash);
      console.log('WARMUP',v,r.total_s,r.setup_s);if(!has('--keep-mp4'))fs.rmSync(f,{force:true});
     }
     for(let rep=0;rep<repetitions;rep++)for(const v of rep%2?[...variants].reverse():variants){
      const f=path.join(out,`${v}_${rep}.mp4`);const r=await run(v,f);
      rows.push({variant:v,repetition:rep,...r});fs.writeFileSync(path.join(out,'runs.json'),JSON.stringify(rows,null,2));
      console.log('RUN',v,rep,r.total_s,'setup',r.setup_s,'capture_sum',r.capture_time_sum_s,'hash',r.correct);
-     if(!r.correct)throw Error('Hash mismatch '+v+' '+r.hash);
+     if(r.correct===false)throw Error('Hash mismatch '+v+' '+r.hash);
      if(!has('--keep-mp4'))fs.rmSync(f,{force:true});
     }
     const summary={run_at:new Date().toISOString(),scene:fixture.scene,scene_sha256:sha(fs.readFileSync(path.join(ROOT,fixture.scene))),reference:expected,
-      renderer:sha(fs.readFileSync(__filename)),chrome:browserVersion,plan_compile:plan.compilation,visual_cache:plan.optimizations.visualCache,
+      renderer:sha(fs.readFileSync(__filename)),cef:browserVersion,plan_compile:plan.compilation,visual_cache:plan.optimizations.visualCache,
       variants,measurements:rows,summary:{}};
     for(const v of variants){const a=rows.filter(x=>x.variant===v).map(x=>x.total_s).sort((a,b)=>a-b);const setups=rows.filter(x=>x.variant===v).map(x=>x.setup_s).sort((a,b)=>a-b);summary.summary[v]={median_s:a[Math.floor(a.length/2)],min_s:a[0],max_s:a.at(-1),median_setup_s:setups[Math.floor(setups.length/2)],all_s:a};}
     fs.writeFileSync(path.join(out,'summary.json'),JSON.stringify(summary,null,2));console.log('SUMMARY',JSON.stringify(summary.summary));
@@ -1008,7 +1103,7 @@ async function main(){fs.mkdirSync(out,{recursive:true});let b;
      for(const lifecycle of modes){
        const f=path.join(out,`warmup_${c.label}_${lifecycle}.mp4`);
        const r=await render(b.cdp,plan,f,c.tabs,c.slots,null,lifecycle==='reused'?tabCache:null);
-       if(!r.correct)throw Error('Warmup hash mismatch '+c.label+' '+lifecycle);
+       if(r.correct===false)throw Error('Warmup hash mismatch '+c.label+' '+lifecycle);
        if(!has('--keep-mp4'))fs.rmSync(f,{force:true});
        console.log('WARMUP',c.label,lifecycle,r.total_s);
      }
@@ -1022,12 +1117,12 @@ async function main(){fs.mkdirSync(out,{recursive:true});let b;
          rows.push({config:c.label,lifecycle,repetition:rep,...r});
          fs.writeFileSync(path.join(out,'runs.json'),JSON.stringify(rows,null,2));
          console.log('RUN',c.label,lifecycle,rep,r.total_s,'setup',r.setup_s,'hash',r.correct);
-         if(!r.correct)throw Error('Hash mismatch '+c.label+' '+lifecycle);
+         if(r.correct===false)throw Error('Hash mismatch '+c.label+' '+lifecycle);
          if(!has('--keep-mp4'))fs.rmSync(f,{force:true});
        }
      }
    }
-   const summary={chromium:browserVersion,reference_sha256:expected,scene:fixture.scene,
+   const summary={cef:browserVersion,reference_sha256:expected,scene:fixture.scene,
      compiled_plan_sha256:sha(fs.readFileSync(planPath)),repetition:repeatPolicy,
      mode:'tabcompare',reps:repetitions,runs:rows,summary:{}};
    for(const c of configs)for(const lifecycle of modes){
@@ -1050,7 +1145,7 @@ async function main(){fs.mkdirSync(out,{recursive:true});let b;
    const measurements=[];
    for(const c of configs){const f=path.join(out,`warmup_${c.label}.mp4`);
     const r=await render(b.cdp,plan,f,c.tabs,c.slots);
-    if(!r.correct)throw Error('Warmup hash mismatch '+c.label);
+    if(r.correct===false)throw Error('Warmup hash mismatch '+c.label);
     if(!has('--keep-mp4'))fs.rmSync(f,{force:true});
     console.log('WARMUP',c.label,r.total_s);
    }
@@ -1060,11 +1155,11 @@ async function main(){fs.mkdirSync(out,{recursive:true});let b;
     measurements.push({variant:c.label,repetition:rep,...r});
     fs.writeFileSync(path.join(out,'runs.json'),JSON.stringify(measurements,null,2));
     console.log('RUN',c.label,rep,r.total_s,'correct',r.correct);
-    if(!r.correct)throw Error('Output SHA mismatch '+c.label+' '+r.hash);
+    if(r.correct===false)throw Error('Output SHA mismatch '+c.label+' '+r.hash);
     if(!has('--keep-mp4'))fs.rmSync(f,{force:true});
    }
    const summary={scene:fixture.scene,reference_sha256:expected,plan_sha256:sha(fs.readFileSync(planPath)),
-    compile_total_s:plan.compilation?.total_s,chromium:browserVersion,mode:'live-react',tab_lifecycle:tabLifecycle,
+    compile_total_s:plan.compilation?.total_s,cef:browserVersion,mode:'live-react',tab_lifecycle:tabLifecycle,
     measurements,summary:{}};
    for(const c of configs){const timings=measurements.filter(r=>r.variant===c.label).map(r=>r.total_s).sort((a,b)=>a-b);
     const med=timings[Math.floor(timings.length/2)];
@@ -1078,17 +1173,17 @@ async function main(){fs.mkdirSync(out,{recursive:true});let b;
   const full={...plan,capture:{x:0,y:0,width:comp.width,height:comp.height},background:{mode:'none'},domReplay:{enabled:false}};
   const react={...plan,domReplay:{enabled:false}};
   const measurements=[];
-  if(!has('--no-warmup')){for(const v of variants){const f=path.join(out,'warmup_'+v+'.mp4');const r=await render(b.cdp,v==='optimized'||v==='optimizedNoRepeat'||v==='factor'||v==='layer'||v==='factorLayer'?plan:v==='react'?react:full,f,v==='full'?1:tabCount,v==='full'?1:slotCount,v==='optimizedNoRepeat'?'off':null,undefined,v==='factor'||v==='factorLayer'?'factor':'react',v==='layer'||v==='factorLayer'?'plan':'off');if(!r.correct)throw Error('Warmup hash mismatch '+v);if(!has('--keep-mp4'))fs.rmSync(f,{force:true});}}
+  if(!has('--no-warmup')){for(const v of variants){const f=path.join(out,'warmup_'+v+'.mp4');const r=await render(b.cdp,v==='optimized'||v==='optimizedNoRepeat'||v==='factor'||v==='layer'||v==='factorLayer'?plan:v==='react'?react:full,f,v==='full'?1:tabCount,v==='full'?1:slotCount,v==='optimizedNoRepeat'?'off':null,undefined,v==='factor'||v==='factorLayer'?'factor':'react',v==='layer'||v==='factorLayer'?'plan':'off');if(r.correct===false)throw Error('Warmup hash mismatch '+v);if(!has('--keep-mp4'))fs.rmSync(f,{force:true});}}
   for(let rep=0;rep<repetitions;rep++)for(const v of rep%2?[...variants].reverse():variants){
    const f=path.join(out,`${v}_${rep}.mp4`);
    const r=await render(b.cdp,v==='optimized'||v==='optimizedNoRepeat'||v==='factor'||v==='layer'||v==='factorLayer'?plan:v==='react'?react:full,f,v==='full'?1:tabCount,v==='full'?1:slotCount,v==='optimizedNoRepeat'?'off':null,undefined,v==='factor'||v==='factorLayer'?'factor':'react',v==='layer'||v==='factorLayer'?'plan':'off');
    measurements.push({variant:v,repetition:rep,...r});fs.writeFileSync(path.join(out,'runs.json'),JSON.stringify(measurements,null,2));
    console.log('RUN',v,rep,r.total_s,'correct',r.correct);
-   if(!r.correct)throw Error('Output SHA mismatch '+v+' '+r.hash);
+   if(r.correct===false)throw Error('Output SHA mismatch '+v+' '+r.hash);
    if(!has('--keep-mp4'))fs.rmSync(f,{force:true});
   }
   const summary={scene:fixture.scene,reference_sha256:expected,plan_sha256:sha(fs.readFileSync(planPath)),
-   compile_total_s:plan.compilation?.total_s,chromium:browserVersion,tab_lifecycle:tabLifecycle,measurements,summary:{}};
+   compile_total_s:plan.compilation?.total_s,cef:browserVersion,tab_lifecycle:tabLifecycle,measurements,summary:{}};
   for(const v of variants){const timings=measurements.filter(r=>r.variant===v).map(r=>r.total_s).sort((a,b)=>a-b);
    summary.summary[v]={median_s:timings[Math.floor(timings.length/2)],min_s:timings[0],max_s:timings.at(-1)};}
   fs.writeFileSync(path.join(out,'summary.json'),JSON.stringify(summary,null,2));

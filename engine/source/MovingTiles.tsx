@@ -1,5 +1,5 @@
 import React from 'react';
-import {AbsoluteFill,useCurrentFrame} from 'remotion';
+import {AbsoluteFill,useCurrentFrame} from './timeline';
 /** Locally authored corpus scene: moving opaque elements on invariant background. */
 export const Hello:React.FC=()=>{
  const frame=useCurrentFrame();

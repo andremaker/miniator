@@ -113,7 +113,7 @@ function bootstrap(Component){
   const frames=Array.from({length:slots},(_,i)=>Math.min(durationInFrames-1,start+i));
   drawFrames(frames);return frames;
  };
- W.remotionAtlasReady=async()=>{await document.fonts.ready;return true;};
+ W.miniatorAtlasReady=async()=>{await document.fonts.ready;return true;};
  W.__MINIATOR_COMPILER_INFO__={engine:'generic-jsx-to-dom',perFrameReactReconciliation:false,mode,slots};
 }
 exports.bootstrap=bootstrap;

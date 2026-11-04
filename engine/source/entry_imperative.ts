@@ -1,10 +1,10 @@
 // Miniator's optional Hello-only imperative optimization adapter.
 // This is project-authored code, not vendored framework implementation.
-import { spring, interpolate } from 'remotion';
+import { spring, interpolate } from './timeline_math';
 (() => {
   const W = window as any;
   const conf = W.__MINIATOR_PLAN__;
-  const originalReady = W.remotionAtlasReady;
+  const originalReady = W.miniatorAtlasReady;
   const originalDraw = W.drawBatch;
   const method = W.__MINIATOR_UPDATE_METHOD__ || 'direct';
   let initialized = false;
@@ -32,7 +32,7 @@ import { spring, interpolate } from 'remotion';
     }
     counter.textContent=`${Math.round(percent)}%${suffixes[slot]}`;
   }
-  W.remotionAtlasReady=async()=>{
+  W.miniatorAtlasReady=async()=>{
     if(initialized)return true;
     await originalReady();
     await originalDraw(30,totalFrames,actualSlots);

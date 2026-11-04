@@ -27,8 +27,8 @@
     "prepare": "node bin/miniator.js prepare",
     "check": "node scripts/check.js && npm run check:third-party && npm run check:namespace",
     "check:third-party": "node scripts/check-third-party-boundary.js",
-    "benchmark:remotion": "node benchmarks/remotion-cli.js",
-    "check:namespace": "node scripts/check-engine-namespace.js"
+    "check:namespace": "node scripts/check-engine-namespace.js",
+    "build:cef": "node scripts/build-cef.js"
   },
   "dependencies": {
     "esbuild": "0.28.1",
@@ -36,11 +36,5 @@
     "react-dom": "19.2.0",
     "typescript": "5.9.3",
     "ws": "8.21.0"
-  },
-  "devDependencies": {
-    "@remotion/cli": "4.0.537",
-    "@remotion/renderer": "4.0.537",
-    "@remotion/bundler": "4.0.537",
-    "remotion": "4.0.537"
   }
 }

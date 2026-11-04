@@ -1,5 +1,5 @@
 import React from 'react';
-import {AbsoluteFill,useCurrentFrame,interpolate} from 'remotion';
+import {AbsoluteFill,useCurrentFrame,interpolate} from './timeline';
 // Benchmark-only negative-space fixture: two independently animated,
 // spatially separated visual groups, with filters, text, opacity and shadows.
 export const Hello:React.FC=()=>{

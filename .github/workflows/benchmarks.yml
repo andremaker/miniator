@@ -1,10 +1,14 @@
-name: Manual benchmark guide
-on:
-  workflow_dispatch:
+name: Runtime validation
+on: workflow_dispatch
 jobs:
-  documentation:
+  source-check:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - run: cat docs/benchmarking.md
-      # Never compare timing numbers on shared CI as a promotion gate.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      # Run native browser/video benchmarks on a separately provisioned CEF host.

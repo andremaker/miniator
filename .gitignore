@@ -18,7 +18,6 @@ benchmarks/results/
 engine/precompiled/
 engine/static_entry.js
 engine/compiler_entry.js
-engine/remotion_compiler_shim.js
 engine/source/generated_static.tsx
 engine/source/generated_static.tsx.analysis.json
 node_modules

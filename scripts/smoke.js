@@ -3,8 +3,7 @@
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const root=path.resolve(__dirname,'..');
-const browser=process.env.MINIATOR_BROWSER||process.env.REMOTION_BROWSER;
-if(!browser)throw Error('Set MINIATOR_BROWSER to the patched Chromium executable');
+if(!process.env.CEF_ROOT && !process.env.MINIATOR_CEF_BRIDGE)throw Error("Set CEF_ROOT or MINIATOR_CEF_BRIDGE");
 const output=fs.mkdtempSync(path.join(os.tmpdir(),'miniator-smoke-'));
 try{
  const r=spawnSync(process.execPath,[path.join(root,'engine/plan_renderer.js'),'--mode','chosen','--reps','1','--output',output,'--slots','4','--tabs','2'],{encoding:'utf8',timeout:120000,env:process.env});

@@ -14,6 +14,7 @@ for (const name of names) {
     continue;
   }
   const file = path.resolve(__dirname, '..', name);
+  if (!fs.existsSync(file)) continue;
   const content = fs.readFileSync(file);
   if (content.includes(0)) continue;
   const text = content.toString('utf8');

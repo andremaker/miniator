@@ -1,7 +1,6 @@
 "use strict";
-// Public adapter for the preserved Miniator benchmark renderer.
-// Currently launches a new worker process per call; persistent tabs exist only
-// within a worker job, not across calls to this API.
+// Miniator public process adapter; one-off rendering uses a fresh worker.
+// compileComposition() and createSession() provide persistent sessions.
 const path=require('node:path');
 const {spawn}=require('node:child_process');
 const root=path.resolve(__dirname,'..');
@@ -19,8 +18,8 @@ function execute(script,args=[],options={}){
   child.on('close',(code,signal)=>code===0?resolve({code,stdout,stderr}):reject(Object.assign(new Error(`${script} exited ${signal||code}: ${stderr.slice(-1000)}`),{code,signal,stdout,stderr})));
  });
 }
-function render({args=[],browserPath,ffmpegPath,signal,onStdout,onStderr}={}){
- return execute('plan_renderer.js',args,{signal,onStdout,onStderr,env:{...(browserPath?{MINIATOR_BROWSER:browserPath}:{}),...(ffmpegPath?{MINIATOR_FFMPEG:ffmpegPath}:{})}});
+function render({args=[],cefBridgePath,ffmpegPath,env={},signal,onStdout,onStderr}={}){
+ return execute('plan_renderer.js',args,{signal,onStdout,onStderr,env:{...env,...(cefBridgePath?{MINIATOR_CEF_BRIDGE:cefBridgePath}:{}),...(ffmpegPath?{MINIATOR_FFMPEG:ffmpegPath}:{})}});
 }
 function prepareScene(scene,options={}){
  if(!/^(Hello_original|SimpleSequences|MovingTiles|ManyCards|GradientMotion|ComplexEffects|SeparatedEffects)$/.test(scene))throw new Error('Unsupported preparation fixture');
@@ -31,3 +30,8 @@ function compileStatic(scene,options={}){
  return execute('build_static.js',[scene],options);
 }
 module.exports={render,prepareScene,compileStatic};
+
+module.exports.compileComposition=(...args)=>require('./composition').compileComposition(...args);
+module.exports.renderComposition=(...args)=>require('./composition').renderComposition(...args);
+
+module.exports.createSession=(...args)=>require('./session').createSession(...args);

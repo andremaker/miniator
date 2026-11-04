@@ -1,5 +1,5 @@
 import React from 'react';
-import {AbsoluteFill,Sequence,useCurrentFrame,interpolate} from 'remotion';
+import {AbsoluteFill,Sequence,useCurrentFrame,interpolate} from './timeline';
 /** Locally authored corpus scene: sequence boundaries, full-frame color changes, numeric text. */
 export const Hello:React.FC=()=>{
  const frame=useCurrentFrame();
